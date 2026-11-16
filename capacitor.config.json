@@ -1,0 +1,13 @@
+{
+  "appId": "com.szymooooo.mojdzien",
+  "appName": "Mój Dzień",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

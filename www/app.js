@@ -6,7 +6,7 @@
 
 const KEY = 'mojdzien.v1';
 const DEF = {
-  settings: { name: 'Ania', apiKey: '', model: 'claude-sonnet-5-5' },
+  settings: { name: 'Ania', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-5-5', baseUrl: '' },
   links: [], recipes: [], shopping: [], plants: [], events: [], notes: [], chat: []
 };
 let S = null;
@@ -106,20 +106,73 @@ function pickImage(max) {
   });
 }
 
-/* ---------- Claude API ---------- */
+/* ---------- AI: Claude / Gemini / kompatybilne z OpenAI ---------- */
+const PROVIDERS = {
+  anthropic: { label: 'Claude (Anthropic) - płatne za użycie', model: 'claude-sonnet-5-5', base: '' },
+  gemini: { label: 'Google Gemini - ma darmowy limit dzienny', model: 'gemini-2.5-flash', base: '' },
+  openai: { label: 'Inne (Groq, OpenRouter, OpenAI…)', model: 'llama-3.3-70b-versatile', base: 'https://api.groq.com/openai/v1' }
+};
 async function claude(opts) {
   if (!hasKey()) throw new Error('NO_KEY');
-  const r = await fetch('https://api.anthropic.com/v1/messages', {
+  const st = S.settings, prov = st.provider || 'anthropic';
+  const msgs = opts.messages.map(m => ({ role: m.role, parts: typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content }));
+  let r, j;
+  if (prov === 'gemini') {
+    const body = {
+      contents: msgs.map(m => ({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: m.parts.map(p => p.type === 'image' ? { inline_data: { mime_type: 'image/jpeg', data: p.dataUrl.split(',')[1] } } : { text: p.text })
+      })),
+      generationConfig: { maxOutputTokens: Math.max(opts.max || 2000, 4000) }
+    };
+    if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
+    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(st.model) + ':generateContent', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': st.apiKey }, body: JSON.stringify(body)
+    });
+    j = await r.json();
+    if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+    const c = j.candidates && j.candidates[0];
+    const text = ((c && c.content && c.content.parts) || []).map(p => p.text || '').join('');
+    if (!text) throw new Error('Pusta odpowiedź modelu');
+    return text;
+  }
+  if (prov === 'openai') {
+    const base = (st.baseUrl || PROVIDERS.openai.base).replace(/\/+$/, '');
+    const messages = [];
+    if (opts.system) messages.push({ role: 'system', content: opts.system });
+    msgs.forEach(m => {
+      const onlyText = m.parts.every(p => p.type === 'text');
+      messages.push({
+        role: m.role,
+        content: onlyText ? m.parts.map(p => p.text).join('\n') : m.parts.map(p => p.type === 'image' ? { type: 'image_url', image_url: { url: p.dataUrl } } : { type: 'text', text: p.text })
+      });
+    });
+    r = await fetch(base + '/chat/completions', {
+      method: 'POST', headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + st.apiKey },
+      body: JSON.stringify({ model: st.model, messages, max_tokens: opts.max || 2000 })
+    });
+    j = await r.json();
+    if (!r.ok) throw new Error((j.error && (j.error.message || j.error)) || ('HTTP ' + r.status));
+    return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
+  }
+  // Anthropic
+  r = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': S.settings.apiKey,
+      'x-api-key': st.apiKey,
       'anthropic-version': '2023-06-01',
       'anthropic-dangerous-direct-browser-access': 'true'
     },
-    body: JSON.stringify({ model: S.settings.model, max_tokens: opts.max || 2000, system: opts.system, messages: opts.messages })
+    body: JSON.stringify({
+      model: st.model, max_tokens: opts.max || 2000, system: opts.system,
+      messages: msgs.map(m => ({
+        role: m.role,
+        content: m.parts.map(p => p.type === 'image' ? { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: p.dataUrl.split(',')[1] } } : { type: 'text', text: p.text })
+      }))
+    })
   });
-  const j = await r.json();
+  j = await r.json();
   if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
   return j.content.map(c => c.text || '').join('');
 }
@@ -128,9 +181,7 @@ function extractJSON(t) {
   if (a < 0 || b < 0) throw new Error('AI nie zwróciło danych');
   return JSON.parse(t.slice(a, b + 1));
 }
-function imgBlock(dataUrl) {
-  return { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: dataUrl.split(',')[1] } };
-}
+function imgBlock(dataUrl) { return { type: 'image', dataUrl }; }
 
 const ANALYZE_SYSTEM = `Jesteś modułem rozpoznawania treści w polskiej aplikacji do codziennego życia. Dostajesz tekst, zawartość strony i/lub zdjęcie. Odpowiadasz WYŁĄCZNIE poprawnym JSON-em (bez komentarzy) w formacie:
 {"type":"recipe|link|note|plant|event|shopping",
@@ -170,6 +221,12 @@ const fmtQ = x => String(Math.round(x * 100) / 100).replace('.', ',');
 function itemText(it, f) {
   if (it.q == null) return it.raw;
   return [fmtQ(it.q * (f || 1)), it.u, it.n].filter(Boolean).join(' ');
+}
+const SCALE_UNITS = 'g|kg|dag|gram\\p{L}*|ml|l|litr\\p{L}*|łyżk\\p{L}*|łyżecz\\p{L}*|szklank\\p{L}*';
+function scaleText(t, f) {
+  if (!f || f === 1) return t;
+  return String(t).replace(new RegExp('(\\d+(?:[.,]\\d+)?)(\\s*)(' + SCALE_UNITS + ')(?![\\p{L}\\d])', 'giu'),
+    (m, n, sp, u) => fmtQ(parseQty(n) * f) + (sp || ' ') + u);
 }
 function splitInline(s) { return s.split(/\s*,\s*|\s+i\s+(?=\d)/).map(x => x.trim().replace(/[.;]+$/, '')).filter(Boolean); }
 
@@ -389,7 +446,7 @@ function listLinks(q) {
   q = (q || '').toLowerCase();
   const ls = S.links.filter(l => !q || (l.title + ' ' + l.url + ' ' + (l.tags || []).join(' ') + ' ' + (l.note || '')).toLowerCase().includes(q));
   if (!ls.length) return '<div class="muted card">Brak zapisanych linków. Użyj „Udostępnij” w innej aplikacji i wybierz Mój Dzień, albo wklej link przyciskiem ＋.</div>';
-  return ls.map(l => `<div class="card"><div class="row"><div class="grow"><h3>${esc(l.title || l.url)}</h3>
+  return ls.map(l => `<div class="card"><div class="row">${l.img ? `<img class="thumb sm" src="${esc(l.img)}" alt="" loading="lazy">` : ''}<div class="grow"><h3>${esc(l.title || l.url)}</h3>
     <div class="muted">${esc(sourceOf(l.url))}</div>${(l.tags || []).map(t => `<span class=chip>${esc(t)}</span>`).join('')}${l.note ? `<div class="muted">${esc(l.note)}</div>` : ''}</div></div>
     <div class="btns"><button class="btn sm" data-act="openLink" data-id="${l.id}">Otwórz</button><button class="btn sm ghost" data-act="editLink" data-id="${l.id}">Edytuj</button><button class="btn sm red" data-act="delLink" data-id="${l.id}">Usuń</button></div></div>`).join('');
 }
@@ -431,7 +488,7 @@ function vRecipe(id) {
     <div class="btns"><button class="btn block" data-act="toShop" data-id="${r.id}">🛒 Dodaj składniki do zakupów</button></div>
     <h2>Składniki</h2><div class="btns" style="margin:0 0 6px">${sc}</div>
     ${r.groups.map(g => `${g.name ? `<h3 style="margin-top:12px">${esc(g.name)}</h3>` : ''}<ul class="ing">${g.items.map(i => `<li>${esc(itemText(i, scale))}</li>`).join('')}</ul>`).join('')}
-    <h2>Wykonanie</h2><ol class="steps">${r.steps.map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    <h2>Wykonanie</h2><ol class="steps">${r.steps.map(s => `<li>${esc(scaleText(s, scale))}</li>`).join('')}</ol>
     <div class="btns" style="margin-top:20px"><button class="btn ghost" data-act="editRecipe" data-id="${r.id}">✏️ Edytuj</button><button class="btn red" data-act="delRecipe" data-id="${r.id}">Usuń</button></div>`;
 }
 
@@ -519,12 +576,15 @@ function buildContext() {
 
 /* --- Ustawienia --- */
 function vSettings() {
+  const st = S.settings, prov = st.provider || 'anthropic';
   return hdr('Ustawienia', true) + `<div class="card">
-    <label>Twoje imię (powitanie)</label><input id="sName" value="${esc(S.settings.name)}">
-    <label>Klucz API Claude (do funkcji AI)</label><input id="sKey" type="password" value="${esc(S.settings.apiKey)}" placeholder="sk-ant-…">
-    <label>Model</label><input id="sModel" value="${esc(S.settings.model)}">
+    <label>Twoje imię (powitanie)</label><input id="sName" value="${esc(st.name)}">
+    <label>Dostawca AI</label><select id="sProv">${Object.keys(PROVIDERS).map(k => `<option value="${k}" ${k === prov ? 'selected' : ''}>${esc(PROVIDERS[k].label)}</option>`).join('')}</select>
+    <label>Klucz API</label><input id="sKey" type="password" value="${esc(st.apiKey)}" placeholder="wklej klucz">
+    <label>Model</label><input id="sModel" value="${esc(st.model)}">
+    <div id="sBaseWrap" class="${prov === 'openai' ? '' : 'hidden'}"><label>Adres API (kompatybilny z OpenAI)</label><input id="sBase" value="${esc(st.baseUrl || PROVIDERS.openai.base)}"></div>
     <button class="btn block" data-act="saveSettings">Zapisz</button>
-    <p class="muted">Klucz jest zapisany tylko na tym telefonie. Bez klucza aplikacja nadal działa - przepisy rozpoznaje prostszym, lokalnym parserem.</p></div>
+    <p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>
     <div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button></div></div>`;
 }
 
@@ -578,7 +638,7 @@ async function handleAdd(text, img) {
   busy(true, 'Analizuję…');
   try {
     const url = (text.match(/https?:\/\/\S+/) || [])[0];
-    if (url && !img && text.replace(url, '').trim().length < 60) { await handleUrl(url, text.replace(url, '').trim()); return; }
+    if (url && !img && text.replace(url, '').trim().length < 200) { await handleUrl(url, text.replace(url, '').trim()); return; }
     if (!hasKey()) {
       if (img) { addNote(text, img); toast('Zdjęcie zapisane jako notatka - do rozpoznawania dodaj klucz AI w Ustawieniach'); return; }
       if (looksLikeRecipe(text)) { openRecipeEditor(parseRecipeText(text), true); return; }
@@ -592,24 +652,81 @@ async function handleAdd(text, img) {
   } finally { busy(false); }
 }
 
-async function handleUrl(url, extra) {
-  let html = '';
+const BROWSER_UA = 'Mozilla/5.0 (Linux; Android 14; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
+const BAD_TITLE = /^(error|facebook$|log in|log into|zaloguj|instagram$|just a moment|access denied|attention required|403|404|forbidden|page not found)/i;
+const SOCIAL_RE = /facebook|fb\.watch|fb\.com|instagram|tiktok/i;
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+function ogTag(html, name) {
+  const re1 = new RegExp('<meta[^>]+(?:property|name)=["\']' + name + '["\'][^>]*content=["\']([^"\']*)["\']', 'i');
+  const re2 = new RegExp('<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name)=["\']' + name + '["\']', 'i');
+  const m = html.match(re1) || html.match(re2);
+  return m ? decodeHtml(m[1]).trim() : '';
+}
+async function thumbToData(u) {
   try {
-    const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (Linux; Android 14; SM-A546B) AppleWebKit/537.36 Chrome/124 Mobile Safari/537.36', 'Accept-Language': 'pl,en;q=0.8' } });
-    html = await r.text();
-  } catch (e) { html = ''; }
+    const r = await withTimeout(fetch(u), 12000);
+    const b = await r.blob();
+    return await fileToDataUrl(b, 500, 0.6);
+  } catch (e) { return u; }
+}
+async function getMeta(url) {
+  const meta = { title: '', img: '', desc: '', html: '' };
+  const social = SOCIAL_RE.test(domainOf(url));
+  try { // oEmbed (YouTube, Vimeo, TikTok…)
+    const r = await withTimeout(fetch('https://noembed.com/embed?url=' + encodeURIComponent(url)), 7000);
+    const j = await r.json();
+    if (j && !j.error) { meta.title = j.title || ''; meta.img = j.thumbnail_url || ''; }
+  } catch (e) { /* idziemy dalej */ }
+  try { // znaczniki Open Graph ze strony (dla Facebooka jako robot podglądu)
+    const ua = social ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)' : BROWSER_UA;
+    const r = await withTimeout(fetch(url, { headers: { 'User-Agent': ua, 'Accept-Language': 'pl,en;q=0.8' } }), 12000);
+    meta.html = await r.text();
+  } catch (e) { /* brak dostępu */ }
+  const h = meta.html;
+  if (h) {
+    const t = ogTag(h, 'og:title') || decodeHtml(((h.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').trim());
+    if (!meta.title && t) meta.title = t;
+    meta.img = meta.img || ogTag(h, 'og:image');
+    meta.desc = ogTag(h, 'og:description') || ogTag(h, 'description');
+  }
+  meta.title = meta.title.replace(/\s+/g, ' ').trim();
+  if (BAD_TITLE.test(meta.title)) meta.title = '';
+  if (meta.title.length > 140) meta.title = meta.title.slice(0, 137) + '…';
+  if (/^(error|log in|zaloguj)/i.test(meta.desc)) meta.desc = '';
+  return meta;
+}
+
+async function handleUrl(url, extra) {
+  extra = extra || '';
+  const meta = await getMeta(url);
+  const html = meta.html;
+  const picture = async () => (meta.img ? await thumbToData(meta.img) : '');
   const rec = html && recipeFromHtml(html, url);
-  if (rec) { openRecipeEditor(rec, true); return; }
-  const title = html ? decodeHtml(((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').trim()) : '';
-  if (hasKey() && html) {
+  if (rec) { if (!rec.image) rec.image = await picture(); openRecipeEditor(rec, true); return; }
+  // opis filmu / posta może zawierać cały przepis
+  const text = meta.desc.length >= extra.length ? meta.desc : extra;
+  if (text.length > 120) {
+    if (hasKey()) {
+      try {
+        const ai = await aiAnalyze((meta.title ? meta.title + '\n' : '') + text);
+        if (ai.type === 'recipe' && ai.recipe) { const r = aiToRecipe(ai.recipe); r.source = url; r.image = await picture(); openRecipeEditor(r, true); return; }
+      } catch (e) { /* zapisz jako link */ }
+    } else if (looksLikeRecipe(text)) {
+      const r = parseRecipeText(text); if (meta.title) r.title = meta.title;
+      r.source = url; r.image = await picture(); openRecipeEditor(r, true); return;
+    }
+  }
+  if (hasKey() && html && !SOCIAL_RE.test(domainOf(url))) {
     try {
-      const ai = await aiAnalyze('Adres: ' + url + '\nTytuł: ' + title + '\n' + htmlToText(html).slice(0, 12000));
-      if (ai.type === 'recipe' && ai.recipe) { const r = aiToRecipe(ai.recipe); r.source = url; openRecipeEditor(r, true); return; }
-      addLink({ url, title: (ai.link && ai.link.title) || title, tags: (ai.link && ai.link.tags) || [], note: extra });
+      const ai = await aiAnalyze('Adres: ' + url + '\nTytuł: ' + meta.title + '\n' + htmlToText(html).slice(0, 12000));
+      if (ai.type === 'recipe' && ai.recipe) { const r = aiToRecipe(ai.recipe); r.source = url; r.image = await picture(); openRecipeEditor(r, true); return; }
+      addLink({ url, title: (ai.link && ai.link.title) || meta.title, tags: (ai.link && ai.link.tags) || [], note: extra, img: await picture() });
       return;
     } catch (e) { /* zapisz zwykły link */ }
   }
-  addLink({ url, title: title || domainOf(url), tags: [], note: extra });
+  const firstLine = extra.split(/\n/)[0].trim();
+  const title = meta.title || (firstLine && firstLine.length < 120 ? firstLine : '') || (sourceOf(url) + ' - zapisany link');
+  addLink({ url, title, tags: [], note: extra && extra !== title ? extra.slice(0, 300) : '', img: await picture() });
 }
 
 function routeAI(ai, text, img) {
@@ -637,7 +754,7 @@ function routeAI(ai, text, img) {
   addNote((ai.note && ai.note.text) || text, img);
 }
 function addLink(o) {
-  S.links.unshift({ id: uid(), url: o.url, title: o.title, tags: o.tags || [], note: o.note || '', ts: Date.now() });
+  S.links.unshift({ id: uid(), url: o.url, title: o.title, img: o.img || '', tags: o.tags || [], note: o.note || '', ts: Date.now() });
   save(); closeSheet(); toast('Zapisano w „Moje linki”'); tab('links');
 }
 function addNote(text, img) {
@@ -882,7 +999,7 @@ const A = {
   },
 
   /* ustawienia */
-  saveSettings: () => { S.settings.name = val('sName') || 'Ania'; S.settings.apiKey = val('sKey'); S.settings.model = val('sModel') || 'claude-sonnet-5-5'; save(); toast('Zapisano'); },
+  saveSettings: () => { const st = S.settings; st.name = val('sName') || 'Ania'; st.provider = val('sProv') || 'anthropic'; st.apiKey = val('sKey'); st.model = val('sModel') || PROVIDERS[st.provider].model; st.baseUrl = val('sBase'); save(); toast('Zapisano'); },
   exportData: async () => { try { await navigator.clipboard.writeText(JSON.stringify(S)); toast('Skopiowano - wklej do notatki/maila'); } catch (e) { toast('Nie udało się skopiować'); } },
   importData: () => sheet(`<h1 style="font-size:22px">Wczytaj kopię</h1><p class="muted">Wklej skopiowane dane. Zastąpią obecne.</p><textarea id="impText"></textarea><div class="btns"><button class="btn" data-act="doImport">Wczytaj</button><button class="btn red" data-act="closeSheet">Anuluj</button></div>`),
   doImport: () => { try { const j = JSON.parse(val('impText')); S = Object.assign(JSON.parse(JSON.stringify(DEF)), j); save(); closeSheet(); tab('start'); toast('Wczytano'); } catch (e) { toast('Niepoprawne dane'); } }
@@ -905,6 +1022,13 @@ function init() {
     const en = ev.target.dataset && ev.target.dataset.enter;
     if (en && ev.key === 'Enter' && !(ev.shiftKey && en === 'chatSend')) { ev.preventDefault(); A[en](); }
   });
+  document.addEventListener('change', ev => {
+    if (ev.target.id === 'sProv') {
+      const p = PROVIDERS[ev.target.value];
+      $('#sModel').value = p.model; $('#sBase').value = p.base || '';
+      $('#sBaseWrap').classList.toggle('hidden', ev.target.value !== 'openai');
+    }
+  });
   window.onShared = () => { const t = window.__shared; window.__shared = null; if (t) { render(); openAdd(t); } };
   render();
   if (window.__shared) window.onShared();
@@ -913,4 +1037,4 @@ function init() {
 }
 
 if (typeof document !== 'undefined') init();
-if (typeof module !== 'undefined') module.exports = { parseRecipeText, parseIngredient, itemText, looksLikeRecipe, searchRecipes: null };
+if (typeof module !== 'undefined') module.exports = { parseRecipeText, parseIngredient, itemText, looksLikeRecipe, scaleText };

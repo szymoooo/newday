@@ -408,7 +408,35 @@ function schedulePlant(p) {
 }
 
 /* =====================  WIDOKI  ===================== */
-const hdr = (title, back, right) => `<div class="hdr">${back ? '<button class="ibtn" data-act="back">←</button>' : ''}<h1>${title}</h1>${right || ''}</div>`;
+const ICONS = {
+  home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  cook: '<path d="M7 14.5a4 4 0 1 1 1.2-7.8 4.5 4.5 0 0 1 7.6 0A4 4 0 1 1 17 14.5V19H7z"/><path d="M7 16.5h10"/>',
+  cart: '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M2.5 3.5h3l2.2 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/>',
+  grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
+  cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
+  note: '<path d="M6 3.5h9l4 4V20a.5.5 0 0 1-.5.5H6a.5.5 0 0 1-.5-.5V4a.5.5 0 0 1 .5-.5z"/><path d="M14.5 3.5V8H19"/><path d="M8.5 12.5h7M8.5 16h5"/>',
+  chat: '<path d="M20 12a7.5 7.5 0 0 1-10.9 6.7L4 20l1.4-4.3A7.5 7.5 0 1 1 20 12z"/>',
+  leaf: '<path d="M12 21v-8"/><path d="M12 13c0-4-3-6.5-7.5-6.5 0 4 2.5 6.5 7.5 6.5z"/><path d="M12 15c0-3.3 2.4-5.5 6.5-5.5 0 3.5-2.2 5.5-6.5 5.5z"/>',
+  drop: '<path d="M12 3.5c3.5 4 6 6.8 6 10a6 6 0 0 1-12 0c0-3.2 2.5-6 6-10z"/>',
+  star: '<path d="m12 3.8 2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z"/>',
+  back: '<path d="m14.5 5-7 7 7 7"/>',
+  check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/>'
+};
+function ic(n, size, sw, fill) {
+  return '<svg class="i" width="' + (size || 26) + '" height="' + (size || 26) + '" viewBox="0 0 24 24" fill="' + (fill || 'none') +
+    '" stroke="currentColor" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
+}
+const star = (on, size) => '<span style="color:' + (on ? '#F2B21B' : '#B8ADA4') + '">' + ic('star', size || 24, 1.7, on ? 'currentColor' : 'none') + '</span>';
+const rz = n => n === 1 ? 'rzecz' : 'rzeczy';
+const fmtTime = m => m >= 60 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min';
+const hdr = (title, back, right) => '<div class="hdr">' + (back ? '<button class="ibtn round" data-act="back" aria-label="Wstecz">' + ic('back', 24, 2.2) + '</button>' : '') + '<h1>' + title + '</h1>' + (right || '') + '</div>';
+const tile = (act, icon, color, label, v) => '<button class="tile" data-act="' + act + '"' + (v ? ' data-v="' + v + '"' : '') + '><span class="ico ' + color + '">' + ic(icon, 28) + '</span>' + label + '</button>';
 
 function vStart() {
   const td = today(), now = new Date();
@@ -416,118 +444,146 @@ function vStart() {
   const pl = S.plants.filter(p => { const d = plantDue(p); return d.water <= 0 || d.fert <= 0; });
   const open = S.shopping.filter(x => !x.done).length;
   const overdue = S.events.filter(e => e.kind === 'task' && !e.done && e.date < td);
-  let plan = '';
-  overdue.forEach(e => plan += evRow(e, true));
-  ev.forEach(e => plan += evRow(e));
-  pl.forEach(p => plan += `<div class="row" style="padding:6px 0"><span>🌿</span><div class="grow">${esc(p.name)} - ${plantDue(p).water <= 0 ? 'podlej' : 'nawieź'}</div><button class="btn sm ghost" data-act="plantsGo">Kwiaty</button></div>`);
-  if (open) plan += `<div class="row" style="padding:6px 0"><span>🛒</span><div class="grow">Do kupienia: ${open} ${open === 1 ? 'pozycja' : 'pozycji'}</div><button class="btn sm ghost" data-act="tab" data-v="shopping">Zakupy</button></div>`;
-  if (!plan) plan = '<div class="muted">Na dziś pusto - miłego dnia! ☀️</div>';
-  return `<div class="hdr" style="display:block"><div class="sub">${esc(plDate(now))}</div><h1>Hej ${esc(S.settings.name)}!</h1></div>
-  <input id="gsearch" placeholder="🔎 Szukaj wszędzie (przepisy, linki, notatki…)" data-enter="gsearch">
-  <h2>Plan dnia</h2><div class="card">${plan}</div>
-  <h2>Szybkie akcje</h2>
-  <div class="grid">
-    <button class="tile" data-act="add"><span>➕</span>Dodaj</button>
-    <button class="tile" data-act="newNote"><span>📝</span>Notatka</button>
-    <button class="tile" data-act="newEvent"><span>📅</span>Wydarzenie</button>
-    <button class="tile" data-act="tab" data-v="shopping"><span>🛒</span>Zakupy</button>
-    <button class="tile" data-act="go" data-v="chat"><span>💬</span>Asystent</button>
-    <button class="tile" data-act="go" data-v="plants"><span>🌿</span>Kwiaty</button>
-  </div>`;
+  let rows = '', count = 0;
+  overdue.forEach(e => { rows += evRow(e, true); count++; });
+  ev.forEach(e => { rows += evRow(e); count++; });
+  pl.forEach(p => {
+    count++;
+    const w = plantDue(p).water <= 0;
+    rows += '<div class="prow"><span class="ico sm c-green">' + ic(w ? 'drop' : 'leaf') + '</span><div class="grow"><div class="t">' + esc(p.name) +
+      '</div><div class="muted">Kwiaty · ' + (w ? 'podlej dziś' : 'nawieź dziś') + '</div></div><button class="btn sm ghost" data-act="' + (w ? 'plantWater' : 'plantFert') + '" data-id="' + p.id + '">' + (w ? 'Podlane' : 'Nawiezione') + '</button></div>';
+  });
+  if (open) rows += '<div class="prow" data-act="tab" data-v="shopping" style="cursor:pointer"><span class="ico sm c-pink">' + ic('cart') + '</span><div class="grow"><div class="t">' + open + ' ' + rz(open) + ' do kupienia</div><div class="muted">Zakupy</div></div></div>';
+  if (!rows) rows = '<div class="muted" style="padding:16px 0">Na dziś pusto - miłego dnia!</div>';
+  const sum = count ? 'Masz dziś ' + count + ' ' + rz(count) + ' w planie' : 'Na dziś nic nie zaplanowano';
+  const dateStr = cap1(now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }));
+  return '<div class="hero"><div class="sun">' + ic('sun', 32) + '</div><div class="d">' + esc(dateStr) + '</div><h1>Hej ' + esc(S.settings.name) + '!</h1><div class="s">' + sum + '</div></div>' +
+    '<label class="search">' + ic('search', 22, 2) + '<input id="gsearch" placeholder="Szukaj wszędzie…" aria-label="Szukaj wszędzie" data-enter="gsearch"></label>' +
+    '<h2>Plan dnia</h2><div class="card flush">' + rows + '</div>' +
+    '<h2>Szybkie akcje</h2><div class="grid">' +
+    tile('add', 'plus', 'c-red', 'Dodaj') + tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('newEvent', 'cal', 'c-blue', 'Wydarzenie') +
+    tile('tab', 'cart', 'c-pink', 'Zakupy', 'shopping') + tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>';
 }
-function evRow(e, late) {
-  return `<div class="row" style="padding:6px 0">
-    ${e.kind === 'task' ? `<button class="check ${e.done ? 'on' : ''}" data-act="evDone" data-id="${e.id}">${e.done ? '✓' : ''}</button>` : '<span>📅</span>'}
-    <div class="grow ${e.done ? 'done' : ''}">${esc(e.title)}${e.time ? ` <span class=muted>· ${esc(e.time)}</span>` : ''}${late ? ' <span class=warn>zaległe</span>' : ''}</div></div>`;
+function evRow(e, late, edit) {
+  const lead = e.kind === 'task'
+    ? '<button class="check ' + (e.done ? 'on' : '') + '" data-act="evDone" data-id="' + e.id + '" aria-label="Zrobione">' + (e.done ? ic('check', 18, 3) : '') + '</button>'
+    : '<span class="ico sm c-blue">' + ic('cal') + '</span>';
+  const meta = [e.time, e.kind === 'task' ? 'zadanie' : 'wydarzenie'].filter(Boolean).join(' · ');
+  return '<div class="prow">' + lead + '<div class="grow ' + (e.done ? 'done' : '') + '"' + (edit ? ' data-act="editEvent" data-id="' + e.id + '"' : '') + '><div class="t">' + esc(e.title) + '</div><div class="muted">' + esc(meta) +
+    (late ? ' · <span class=warn>zaległe</span>' : '') + (e.note ? '<br>' + esc(e.note) : '') + '</div></div></div>';
 }
 
 /* --- Linki --- */
+let linkFilter = 'Wszystkie';
+function linkCard(l) {
+  const src = sourceOf(l.url);
+  const tags = (l.tags || []).map(t => '<span class="chip yellow">' + esc(t) + '</span>').join('');
+  const note = l.note ? '<div class="muted" style="margin-top:6px">' + esc(l.note) + '</div>' : '';
+  const btns = '<div class="btns"><button class="btn sm" data-act="openLink" data-id="' + l.id + '">Otwórz</button><button class="btn sm ghost" data-act="editLink" data-id="' + l.id + '">Zmień nazwę</button><button class="btn sm red" data-act="delLink" data-id="' + l.id + '">Usuń</button></div>';
+  if (l.img) {
+    return '<div class="lcard"><div class="limg"><img src="' + esc(l.img) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'ph\',\'blue\');this.remove()"><span class="src">' + esc(src) + '</span></div>' +
+      '<div class="lbody"><h3>' + esc(l.title || l.url) + '</h3><div style="margin-top:8px">' + tags + '</div>' + note + btns + '</div></div>';
+  }
+  return '<div class="card"><div class="row"><span class="thumb sm ph green">' + ic('link', 30) + '</span><div class="grow"><h3>' + esc(l.title || l.url) + '</h3><div class="muted">' + esc(src) + '</div></div></div>' +
+    (tags ? '<div style="margin-top:8px">' + tags + '</div>' : '') + note + btns + '</div>';
+}
 function listLinks(q) {
   q = (q || '').toLowerCase();
-  const ls = S.links.filter(l => !q || (l.title + ' ' + l.url + ' ' + (l.tags || []).join(' ') + ' ' + (l.note || '')).toLowerCase().includes(q));
-  if (!ls.length) return '<div class="muted card">Brak zapisanych linków. Użyj „Udostępnij” w innej aplikacji i wybierz Mój Dzień, albo wklej link przyciskiem ＋.</div>';
-  return ls.map(l => `<div class="card"><div class="row">${l.img ? `<img class="thumb sm" src="${esc(l.img)}" alt="" loading="lazy">` : ''}<div class="grow"><h3>${esc(l.title || l.url)}</h3>
-    <div class="muted">${esc(sourceOf(l.url))}</div>${(l.tags || []).map(t => `<span class=chip>${esc(t)}</span>`).join('')}${l.note ? `<div class="muted">${esc(l.note)}</div>` : ''}</div></div>
-    <div class="btns"><button class="btn sm" data-act="openLink" data-id="${l.id}">Otwórz</button><button class="btn sm ghost" data-act="editLink" data-id="${l.id}">Edytuj</button><button class="btn sm red" data-act="delLink" data-id="${l.id}">Usuń</button></div></div>`).join('');
+  const ls = S.links.filter(l => (linkFilter === 'Wszystkie' || sourceOf(l.url) === linkFilter) &&
+    (!q || (l.title + ' ' + l.url + ' ' + (l.tags || []).join(' ') + ' ' + (l.note || '')).toLowerCase().includes(q)));
+  if (!ls.length) return '<div class="muted card">Brak zapisanych linków. Użyj „Udostępnij” w innej aplikacji i wybierz Mój Dzień, albo wklej link przyciskiem +.</div>';
+  return ls.map(linkCard).join('');
 }
 function vLinks() {
-  return hdr('Moje linki') + `<input id="lq" placeholder="Szukaj w linkach…" data-live="links"><div id="list">${listLinks('')}</div>`;
+  const srcs = ['Wszystkie'].concat([...new Set(S.links.map(l => sourceOf(l.url)))].slice(0, 5));
+  if (!srcs.includes(linkFilter)) linkFilter = 'Wszystkie';
+  const pills = srcs.length > 2 ? '<div class="pills" style="margin:12px 0 4px">' + srcs.map(k => '<button class="chip ' + (linkFilter === k ? 'act' : 'plain') + '" data-act="linkFilter" data-k="' + esc(k) + '">' + esc(k) + '</button>').join('') + '</div>' : '';
+  return hdr('Moje linki') + '<div class="muted" style="margin:-8px 0 12px">Wszystko, co zapisane, w jednym miejscu</div>' +
+    '<label class="search">' + ic('search', 22, 2) + '<input id="lq" placeholder="Szukaj w linkach…" aria-label="Szukaj w linkach" data-live="links"></label>' + pills + '<div id="list">' + listLinks('') + '</div>';
 }
 
 /* --- Przepisy --- */
-function listRecipes(q, favOnly) {
+function metaChips(r, f) {
+  const c = [];
+  if (r.servings) c.push(['', Math.round(r.servings * f * 10) / 10 + ' porcji']);
+  if (r.total) c.push(['blue', fmtTime(r.total)]);
+  const t = [r.temp ? r.temp + '°C' : '', r.cook ? r.cook + ' min' : ''].filter(Boolean).join(' · ');
+  if (t) c.push(['yellow', t]);
+  return c.map(x => '<span class="chip ' + x[0] + '">' + esc(x[1]) + '</span>').join('');
+}
+function listRecipes(q, onlyFav) {
   let res = searchRecipes(q);
-  if (favOnly) res = res.filter(x => x.r.fav);
-  if (!res.length) return `<div class="muted card">${S.recipes.length ? 'Nic nie pasuje.' : 'Brak przepisów. Wklej tekst, link lub zdjęcie przepisu przyciskiem ＋ - AI zrobi z tego kartę.'}</div>`;
-  return res.map(({ r, hit, of }) => `<div class="card tap" data-act="openRecipe" data-id="${r.id}"><div class="row">
-    ${r.image ? `<img class="thumb sm" src="${esc(r.image)}" alt="" loading="lazy">` : '<div class="thumb sm"></div>'}
-    <div class="grow"><h3>${r.fav ? '⭐ ' : ''}${esc(r.title)}</h3>
-    <div class="muted">${r.servings ? r.servings + ' porcji · ' : ''}${r.groups.reduce((a, g) => a + g.items.length, 0)} składników${of ? ` · <span class=okc>masz ${hit}/${of}</span>` : ''}</div></div></div></div>`).join('');
+  if (onlyFav) res = res.filter(x => x.r.fav);
+  if (!res.length) return '<div class="muted card">' + (S.recipes.length ? 'Nic nie pasuje.' : 'Brak przepisów. Wklej tekst, link lub zdjęcie przepisu przyciskiem + - AI zrobi z tego kartę.') + '</div>';
+  return res.map(x => {
+    const r = x.r, n = r.groups.reduce((a, g) => a + g.items.length, 0);
+    const have = x.of ? '<span class="chip green">masz ' + x.hit + '/' + x.of + '</span>' : '';
+    if (r.image) {
+      return '<div class="lcard" data-act="openRecipe" data-id="' + r.id + '"><div class="limg" style="height:170px"><img src="' + esc(r.image) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'ph\');this.remove()"></div>' +
+        '<div class="lbody"><div class="row"><h3 class="grow">' + esc(r.title) + '</h3>' + (r.fav ? star(true, 22) : '') + '</div><div style="margin-top:8px">' + metaChips(r, 1) + have + '</div></div></div>';
+    }
+    return '<div class="card tap rcard" data-act="openRecipe" data-id="' + r.id + '"><span class="thumb sm ph">' + ic('cook', 30, 1.6) + '</span><div class="grow"><h3>' + (r.fav ? '<span style="color:#F2B21B">★</span> ' : '') + esc(r.title) +
+      '</h3><div class="muted" style="margin-top:4px">' + (r.servings ? r.servings + ' porcji · ' : '') + n + ' składników</div>' + have + '</div></div>';
+  }).join('');
 }
 let favOnly = false;
 function vRecipes() {
-  return hdr('Przepisy', false, `<button class="ibtn" data-act="toggleFav">${favOnly ? '⭐' : '☆'}</button>`) +
-    `<input id="rq" placeholder="Szukaj lub: „co z jajek, mleka i mąki?”" data-live="recipes"><div id="list">${listRecipes('', favOnly)}</div>`;
-}
-function metaChips(r, f) {
-  const c = [];
-  if (r.servings) c.push('🍽 ' + Math.round(r.servings * f * 10) / 10 + ' porcji');
-  if (r.total) c.push('⏱ łącznie ' + (r.total >= 60 ? Math.floor(r.total / 60) + ' h ' + (r.total % 60 ? r.total % 60 + ' min' : '') : r.total + ' min'));
-  if (r.cook) c.push('🔥 pieczenie/gotowanie ' + r.cook + ' min');
-  if (r.temp) c.push('🌡 ' + r.temp + '°C');
-  return c.map(x => `<span class=chip>${esc(x.trim())}</span>`).join('');
+  return hdr('Przepisy', false, '<button class="ibtn round" data-act="toggleFav" aria-label="Ulubione">' + star(favOnly, 24) + '</button>') +
+    '<label class="search">' + ic('search', 22, 2) + '<input id="rq" placeholder="Szukaj lub: co z jajek i mleka?" aria-label="Szukaj przepisu" data-live="recipes"></label>' +
+    '<div id="list" style="margin-top:10px">' + listRecipes('', favOnly) + '</div>';
 }
 function vRecipe(id) {
   const r = S.recipes.find(x => x.id === id);
   if (!r) return hdr('Przepis', true) + '<div class="muted">Nie znaleziono.</div>';
-  const sc = [0.5, 1, 2, 3].map(k => `<button class="btn sm ${scale === k ? '' : 'ghost'}" data-act="setScale" data-k="${k}">×${String(k).replace('.', ',')}</button>`).join('');
-  return hdr('', true, `<button class="star" data-act="favRecipe" data-id="${r.id}">${r.fav ? '⭐' : '☆'}</button>`) +
-    (r.image ? `<img class="thumb" src="${esc(r.image)}" alt="">` : '') +
-    `<h1 style="margin-top:10px">${esc(r.title)}</h1><div>${metaChips(r, scale)}</div>
-    ${r.source ? `<div class="muted">Źródło: ${esc(domainOf(r.source) || r.source)}</div>` : ''}
-    <div class="btns"><button class="btn block" data-act="toShop" data-id="${r.id}">🛒 Dodaj składniki do zakupów</button></div>
-    <h2>Składniki</h2><div class="btns" style="margin:0 0 6px">${sc}</div>
-    ${r.groups.map(g => `${g.name ? `<h3 style="margin-top:12px">${esc(g.name)}</h3>` : ''}<ul class="ing">${g.items.map(i => `<li>${esc(itemText(i, scale))}</li>`).join('')}</ul>`).join('')}
-    <h2>Wykonanie</h2><ol class="steps">${r.steps.map(s => `<li>${esc(scaleText(s, scale))}</li>`).join('')}</ol>
-    <div class="btns" style="margin-top:20px"><button class="btn ghost" data-act="editRecipe" data-id="${r.id}">✏️ Edytuj</button><button class="btn red" data-act="delRecipe" data-id="${r.id}">Usuń</button></div>`;
+  const seg = [0.5, 1, 2, 3].map(k => '<button class="' + (scale === k ? 'on' : '') + '" data-act="setScale" data-k="' + k + '">×' + String(k).replace('.', ',') + '</button>').join('');
+  const hero = '<div class="rhero">' + (r.image ? '<img src="' + esc(r.image) + '" alt="" onerror="this.remove()">' : '<div class="ph" style="height:100%">' + ic('cook', 96, 1.2) + '</div>') +
+    '<button class="ibtn round fl" style="left:18px" data-act="back" aria-label="Wstecz">' + ic('back', 24, 2.2) + '</button>' +
+    '<button class="ibtn round fl" style="right:18px" data-act="favRecipe" data-id="' + r.id + '" aria-label="Ulubiony">' + star(r.fav, 26) + '</button></div>';
+  const groups = r.groups.map(g => (g.name ? '<div style="margin-top:14px"><span class="chip yellow">' + esc(g.name) + '</span></div>' : '') +
+    '<div class="card flush" style="margin-top:8px"><ul class="ing">' + g.items.map(i => '<li>' + esc(itemText(i, scale)) + '</li>').join('') + '</ul></div>').join('');
+  const steps = r.steps.map((t, i) => '<div class="step"><div class="n">' + (i + 1) + '</div><div>' + esc(scaleText(t, scale)) + '</div></div>').join('');
+  return hero + '<div class="rbody"><h1>' + esc(r.title) + '</h1><div style="margin-top:12px">' + metaChips(r, scale) + '</div>' +
+    (r.source ? '<div class="muted" style="margin-top:6px">Źródło: ' + esc(domainOf(r.source) || r.source) + '</div>' : '') +
+    '<button class="btn block" style="margin-top:18px" data-act="toShop" data-id="' + r.id + '">' + ic('cart', 24, 2) + 'Dodaj składniki do zakupów</button>' +
+    '<div class="row" style="margin-top:24px"><h2 class="grow" style="margin:0">Składniki</h2><div class="seg">' + seg + '</div></div>' + groups +
+    '<h2>Wykonanie</h2>' + steps +
+    '<div class="btns" style="margin-top:20px"><button class="btn ghost" data-act="editRecipe" data-id="' + r.id + '">Edytuj</button><button class="btn red" data-act="delRecipe" data-id="' + r.id + '">Usuń</button></div></div>';
 }
 
 /* --- Zakupy --- */
 function vShopping() {
   const items = S.shopping;
   const todo = items.filter(x => !x.done), done = items.filter(x => x.done);
-  const row = x => `<div class="card row"><button class="check ${x.done ? 'on' : ''}" data-act="shopTick" data-id="${x.id}">${x.done ? '✓' : ''}</button>
-    <div class="grow ${x.done ? 'done' : ''}">${esc(x.text)}${x.from ? `<div class="muted">${esc(x.from)}</div>` : ''}</div>
-    <button class="ibtn" data-act="shopDel" data-id="${x.id}">✕</button></div>`;
-  return hdr('Zakupy', false, done.length ? '<button class="ibtn" data-act="shopClear">Usuń kupione</button>' : '') +
-    `<div class="row"><input id="newItem" placeholder="Dodaj produkt…" data-enter="shopAdd" style="margin:0"><button class="btn" data-act="shopAdd">Dodaj</button></div>
-    <div style="margin-top:10px">${todo.map(row).join('') || '<div class="muted card">Lista pusta ✨</div>'}${done.length ? '<h2>Kupione</h2>' + done.map(row).join('') : ''}</div>`;
+  const row = x => '<div class="prow"><button class="check ' + (x.done ? 'on' : '') + '" data-act="shopTick" data-id="' + x.id + '" aria-label="Kupione">' + (x.done ? ic('check', 18, 3) : '') + '</button>' +
+    '<div class="grow ' + (x.done ? 'done' : '') + '"><div class="t">' + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + '</div>' +
+    '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="shopDel" data-id="' + x.id + '" aria-label="Usuń">' + ic('x', 22, 2) + '</button></div>';
+  return '<div class="hdr"><div class="grow"><h1>Zakupy</h1><div class="muted" style="margin-top:4px">' + todo.length + ' do kupienia · ' + done.length + ' w koszyku</div></div>' +
+    (done.length ? '<button class="ibtn" data-act="shopClear">Usuń kupione</button>' : '') + '</div>' +
+    '<div class="row"><label class="search grow" style="margin:0"><input id="newItem" placeholder="Dodaj produkt…" aria-label="Dodaj produkt" data-enter="shopAdd"></label>' +
+    '<button class="ibtn round" style="background:var(--acc);color:#fff;width:52px;height:52px;box-shadow:0 6px 16px rgba(200,69,26,.3)" data-act="shopAdd" aria-label="Dodaj">' + ic('plus', 26, 2.4) + '</button></div>' +
+    '<div class="card flush" style="margin-top:16px">' + (todo.map(row).join('') || '<div class="muted" style="padding:16px 0">Lista pusta</div>') + '</div>' +
+    (done.length ? '<h2 style="color:var(--mut)">W koszyku</h2><div class="card flush">' + done.map(row).join('') + '</div>' : '');
 }
 
 /* --- Więcej --- */
 function vMore() {
-  return hdr('Więcej') + `<div class="grid">
-    <button class="tile" data-act="go" data-v="chat"><span>💬</span>Asystent AI</button>
-    <button class="tile" data-act="go" data-v="plants"><span>🌿</span>Kwiaty</button>
-    <button class="tile" data-act="go" data-v="events"><span>📅</span>Kalendarz</button>
-    <button class="tile" data-act="go" data-v="notes"><span>📝</span>Notatki</button>
-    <button class="tile" data-act="go" data-v="search"><span>🔎</span>Szukaj</button>
-    <button class="tile" data-act="go" data-v="settings"><span>⚙️</span>Ustawienia</button></div>`;
+  return hdr('Więcej') + '<div class="grid">' +
+    tile('go', 'chat', 'c-purple', 'Asystent AI', 'chat') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') +
+    tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'search', 'c-red', 'Szukaj', 'search') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
 }
 
 /* --- Kwiaty --- */
 function vPlants() {
   const cards = S.plants.map(p => {
     const d = plantDue(p);
-    return `<div class="card">${p.img ? `<img class="thumb" src="${p.img}" alt="">` : ''}
-      <h3 style="margin-top:8px">🌿 ${esc(p.name)}</h3>
-      <div>${dueLabel(d.water, 'Podlewanie')}${p.fertDays ? ' · ' + dueLabel(d.fert, 'Nawożenie') : ''}</div>
-      ${p.note ? `<div class="muted">${esc(p.note)}</div>` : ''}
-      <div class="btns"><button class="btn sm" data-act="plantWater" data-id="${p.id}">💧 Podlane</button>
-      ${p.fertDays ? `<button class="btn sm ghost" data-act="plantFert" data-id="${p.id}">🧪 Nawiezione</button>` : ''}
-      <button class="btn sm ghost" data-act="editPlant" data-id="${p.id}">Edytuj</button></div></div>`;
+    return '<div class="card">' + (p.img ? '<img class="thumb" src="' + p.img + '" alt="">' : '') +
+      '<div class="row" style="margin-top:' + (p.img ? 12 : 0) + 'px"><span class="ico sm c-green">' + ic('leaf') + '</span><div class="grow"><h3>' + esc(p.name) + '</h3><div>' + dueLabel(d.water, 'Podlewanie') + (p.fertDays ? ' · ' + dueLabel(d.fert, 'Nawożenie') : '') + '</div></div></div>' +
+      (p.note ? '<div class="muted" style="margin-top:8px">' + esc(p.note) + '</div>' : '') +
+      '<div class="btns"><button class="btn sm" data-act="plantWater" data-id="' + p.id + '">Podlane</button>' +
+      (p.fertDays ? '<button class="btn sm ghost" data-act="plantFert" data-id="' + p.id + '">Nawiezione</button>' : '') +
+      '<button class="btn sm ghost" data-act="editPlant" data-id="' + p.id + '">Edytuj</button></div></div>';
   }).join('') || '<div class="muted card">Brak roślin. Dodaj pierwszą - możesz zrobić zdjęcie i poprosić AI o rozpoznanie.</div>';
-  return hdr('Kwiaty', true, '<button class="btn sm" data-act="newPlant">＋ Roślina</button>') + cards;
+  return hdr('Kwiaty', true, '<button class="btn sm" data-act="newPlant">+ Roślina</button>') + cards;
 }
 
 /* --- Kalendarz --- */
@@ -537,83 +593,83 @@ function vEvents() {
     .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
   let html = '', last = '';
   list.forEach(e => {
-    if (e.date !== last) { html += `<h2>${e.date < td ? 'Zaległe' : e.date === td ? 'Dziś' : esc(plShort(e.date))}</h2>`; last = e.date; }
-    html += `<div class="card row">${e.kind === 'task' ? `<button class="check ${e.done ? 'on' : ''}" data-act="evDone" data-id="${e.id}">${e.done ? '✓' : ''}</button>` : '<span>📅</span>'}
-      <div class="grow ${e.done ? 'done' : ''}" data-act="editEvent" data-id="${e.id}">${esc(e.title)}${e.time ? ` <span class=muted>· ${esc(e.time)}</span>` : ''}${e.note ? `<div class="muted">${esc(e.note)}</div>` : ''}</div></div>`;
+    if (e.date !== last) { html += '<h2>' + (e.date < td ? 'Zaległe' : e.date === td ? 'Dziś' : esc(plShort(e.date))) + '</h2>'; last = e.date; }
+    html += '<div class="card flush">' + evRow(e, false, true) + '</div>';
   });
-  return hdr('Kalendarz', true, '<button class="btn sm" data-act="newEvent">＋ Dodaj</button>') + (html || '<div class="muted card">Brak nadchodzących wydarzeń i zadań.</div>');
+  return hdr('Kalendarz', true, '<button class="btn sm" data-act="newEvent">+ Dodaj</button>') + (html || '<div class="muted card">Brak nadchodzących wydarzeń i zadań.</div>');
 }
 
 /* --- Notatki --- */
 function vNotes() {
   const ns = [...S.notes].sort((a, b) => (b.pin ? 1 : 0) - (a.pin ? 1 : 0) || b.ts - a.ts);
-  return hdr('Notatki', true, '<button class="btn sm" data-act="newNote">＋ Notatka</button>') +
-    (ns.map(n => `<div class="card tap" data-act="editNote" data-id="${n.id}">${n.img ? `<img class="thumb" src="${n.img}" alt="" style="height:120px">` : ''}
-      <div style="white-space:pre-wrap;margin-top:${n.img ? 8 : 0}px">${n.pin ? '📌 ' : ''}${esc((n.text || '').slice(0, 280))}</div>
-      <div class="muted">${new Date(n.ts).toLocaleDateString('pl-PL')}</div></div>`).join('') || '<div class="muted card">Brak notatek.</div>');
+  return hdr('Notatki', true, '<button class="btn sm" data-act="newNote">+ Notatka</button>') +
+    (ns.map(n => '<div class="card tap" data-act="editNote" data-id="' + n.id + '">' + (n.img ? '<img class="thumb" src="' + n.img + '" alt="" style="height:120px">' : '') +
+      '<div style="white-space:pre-wrap;margin-top:' + (n.img ? 8 : 0) + 'px">' + (n.pin ? '📌 ' : '') + esc((n.text || '').slice(0, 280)) + '</div>' +
+      '<div class="muted" style="margin-top:6px">' + new Date(n.ts).toLocaleDateString('pl-PL') + '</div></div>').join('') || '<div class="muted card">Brak notatek.</div>');
 }
 
 /* --- Asystent --- */
-function mdLite(s) { return esc(s).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>'); }
+function mdLite(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>'); }
 function vChat() {
-  const msgs = S.chat.map(m => `<div class="bubble ${m.role === 'user' ? 'me' : 'ai'}">${mdLite(m.text)}</div>`).join('') ||
-    `<div class="muted card">Cześć ${esc(S.settings.name)}! Zapytaj mnie np. „gdzie zapisałam tamten przepis na rogaliki?”, „co mam dziś w planie?” albo poproś o pomoc w codziennych sprawach.${hasKey() ? '' : '<br><br><span class=warn>Najpierw dodaj klucz AI w Ustawieniach.</span>'}</div>`;
+  const msgs = S.chat.map(m => '<div class="bubble ' + (m.role === 'user' ? 'me' : 'ai') + '">' + mdLite(m.text) + '</div>').join('') ||
+    '<div class="muted card">Cześć ' + esc(S.settings.name) + '! Zapytaj mnie np. „gdzie zapisałam tamten przepis na rogaliki?”, „co mam dziś w planie?” albo poproś o pomoc w codziennych sprawach.' + (hasKey() ? '' : '<br><br><span class=warn>Najpierw dodaj klucz AI w Ustawieniach.</span>') + '</div>';
   return hdr('Asystent', true, '<button class="ibtn" data-act="chatClear">Wyczyść</button>') + msgs +
-    `<div class="chatbar"><textarea id="chatIn" placeholder="Napisz wiadomość…" data-enter="chatSend"></textarea><button class="btn" data-act="chatSend">➤</button></div>`;
+    '<div class="chatbar"><textarea id="chatIn" placeholder="Napisz wiadomość…" data-enter="chatSend"></textarea><button class="btn" data-act="chatSend" aria-label="Wyślij">➤</button></div>';
 }
 function buildContext() {
   const td = today();
   const c = [];
   c.push('Dzisiaj: ' + plDate(new Date()) + ' (' + td + '). Użytkownik: ' + S.settings.name + '.');
-  c.push('WYDARZENIA/ZADANIA: ' + (S.events.filter(e => e.date >= td || (e.kind === 'task' && !e.done)).slice(0, 25).map(e => `${e.date} ${e.time || ''} ${e.title}${e.done ? ' [zrobione]' : ''}`).join('; ') || 'brak'));
+  c.push('WYDARZENIA/ZADANIA: ' + (S.events.filter(e => e.date >= td || (e.kind === 'task' && !e.done)).slice(0, 25).map(e => e.date + ' ' + (e.time || '') + ' ' + e.title + (e.done ? ' [zrobione]' : '')).join('; ') || 'brak'));
   c.push('ZAKUPY: ' + (S.shopping.filter(x => !x.done).map(x => x.text).join('; ') || 'pusto'));
-  c.push('PRZEPISY: ' + (S.recipes.map(r => `${r.title} (${r.groups.flatMap(g => g.items.map(i => i.n || i.raw)).slice(0, 12).join(', ')})`).join(' | ') || 'brak'));
-  c.push('LINKI: ' + (S.links.slice(0, 60).map(l => `${l.title || ''} <${l.url}> ${(l.tags || []).join(',')}`).join(' | ') || 'brak'));
+  c.push('PRZEPISY: ' + (S.recipes.map(r => r.title + ' (' + r.groups.flatMap(g => g.items.map(i => i.n || i.raw)).slice(0, 12).join(', ') + ')').join(' | ') || 'brak'));
+  c.push('LINKI: ' + (S.links.slice(0, 60).map(l => (l.title || '') + ' <' + l.url + '> ' + (l.tags || []).join(',')).join(' | ') || 'brak'));
   c.push('NOTATKI: ' + (S.notes.slice(0, 40).map(n => (n.text || '').slice(0, 120).replace(/\n/g, ' ')).join(' | ') || 'brak'));
-  c.push('ROŚLINY: ' + (S.plants.map(p => `${p.name} (podlewanie co ${p.waterDays} d, ostatnio ${p.lastWater || '?'})`).join('; ') || 'brak'));
+  c.push('ROŚLINY: ' + (S.plants.map(p => p.name + ' (podlewanie co ' + p.waterDays + ' d, ostatnio ' + (p.lastWater || '?') + ')').join('; ') || 'brak'));
   return c.join('\n').slice(0, 14000);
 }
 
 /* --- Ustawienia --- */
 function vSettings() {
   const st = S.settings, prov = st.provider || 'anthropic';
-  return hdr('Ustawienia', true) + `<div class="card">
-    <label>Twoje imię (powitanie)</label><input id="sName" value="${esc(st.name)}">
-    <label>Dostawca AI</label><select id="sProv">${Object.keys(PROVIDERS).map(k => `<option value="${k}" ${k === prov ? 'selected' : ''}>${esc(PROVIDERS[k].label)}</option>`).join('')}</select>
-    <label>Klucz API</label><input id="sKey" type="password" value="${esc(st.apiKey)}" placeholder="wklej klucz">
-    <label>Model</label><input id="sModel" value="${esc(st.model)}">
-    <div id="sBaseWrap" class="${prov === 'openai' ? '' : 'hidden'}"><label>Adres API (kompatybilny z OpenAI)</label><input id="sBase" value="${esc(st.baseUrl || PROVIDERS.openai.base)}"></div>
-    <button class="btn block" data-act="saveSettings">Zapisz</button>
-    <p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>
-    <div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button></div></div>`;
+  return hdr('Ustawienia', true) + '<div class="card">' +
+    '<label>Twoje imię (powitanie)</label><input id="sName" value="' + esc(st.name) + '">' +
+    '<label>Dostawca AI</label><select id="sProv">' + Object.keys(PROVIDERS).map(k => '<option value="' + k + '" ' + (k === prov ? 'selected' : '') + '>' + esc(PROVIDERS[k].label) + '</option>').join('') + '</select>' +
+    '<label>Klucz API</label><input id="sKey" type="password" value="' + esc(st.apiKey) + '" placeholder="wklej klucz">' +
+    '<label>Model</label><input id="sModel" value="' + esc(st.model) + '">' +
+    '<div id="sBaseWrap" class="' + (prov === 'openai' ? '' : 'hidden') + '"><label>Adres API (kompatybilny z OpenAI)</label><input id="sBase" value="' + esc(st.baseUrl || PROVIDERS.openai.base) + '"></div>' +
+    '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
+    '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
+    '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button></div></div>';
 }
 
 /* --- Szukaj wszędzie --- */
 function globalSearch(q) {
   q = (q || '').toLowerCase().trim(); if (!q) return [];
   const out = [];
-  const has = s => String(s || '').toLowerCase().includes(q);
-  S.recipes.forEach(r => { if (has(r.title) || r.groups.some(g => g.items.some(i => has(i.raw)))) out.push({ t: '🍳 Przepis', title: r.title, act: 'openRecipe', id: r.id }); });
-  S.links.forEach(l => { if (has(l.title) || has(l.url) || has(l.note) || (l.tags || []).some(has)) out.push({ t: '🔗 Link', title: l.title || l.url, act: 'openLink', id: l.id }); });
-  S.notes.forEach(n => { if (has(n.text)) out.push({ t: '📝 Notatka', title: (n.text || '').slice(0, 80), act: 'editNote', id: n.id }); });
-  S.plants.forEach(p => { if (has(p.name)) out.push({ t: '🌿 Roślina', title: p.name, act: 'plantsGo', id: p.id }); });
-  S.events.forEach(e => { if (has(e.title)) out.push({ t: '📅 Wydarzenie', title: e.title + ' (' + e.date + ')', act: 'editEvent', id: e.id }); });
-  S.shopping.forEach(x => { if (has(x.text)) out.push({ t: '🛒 Zakupy', title: x.text, act: 'tab', v: 'shopping' }); });
+  const has = t => String(t || '').toLowerCase().includes(q);
+  S.recipes.forEach(r => { if (has(r.title) || r.groups.some(g => g.items.some(i => has(i.raw)))) out.push({ t: 'Przepis', title: r.title, act: 'openRecipe', id: r.id }); });
+  S.links.forEach(l => { if (has(l.title) || has(l.url) || has(l.note) || (l.tags || []).some(has)) out.push({ t: 'Link', title: l.title || l.url, act: 'openLink', id: l.id }); });
+  S.notes.forEach(n => { if (has(n.text)) out.push({ t: 'Notatka', title: (n.text || '').slice(0, 80), act: 'editNote', id: n.id }); });
+  S.plants.forEach(p => { if (has(p.name)) out.push({ t: 'Roślina', title: p.name, act: 'plantsGo', id: p.id }); });
+  S.events.forEach(e => { if (has(e.title)) out.push({ t: 'Wydarzenie', title: e.title + ' (' + e.date + ')', act: 'editEvent', id: e.id }); });
+  S.shopping.forEach(x => { if (has(x.text)) out.push({ t: 'Zakupy', title: x.text, act: 'tab', v: 'shopping' }); });
   return out;
 }
 function vSearch(q) {
   const res = globalSearch(q);
-  return hdr('Szukaj', true) + `<input id="gq" value="${esc(q || '')}" placeholder="Szukaj…" data-enter="gsearch2">` +
-    (q ? (res.map(r => `<div class="card tap" data-act="${r.act}" data-id="${r.id || ''}" data-v="${r.v || ''}"><div class="muted">${r.t}</div>${esc(r.title)}</div>`).join('') || '<div class="muted card">Nic nie znaleziono.</div>') : '');
+  return hdr('Szukaj', true) + '<label class="search">' + ic('search', 22, 2) + '<input id="gq" value="' + esc(q || '') + '" placeholder="Szukaj…" data-enter="gsearch2"></label>' +
+    (q ? (res.map(r => '<div class="card tap" data-act="' + r.act + '" data-id="' + (r.id || '') + '" data-v="' + (r.v || '') + '"><div class="muted">' + r.t + '</div>' + esc(r.title) + '</div>').join('') || '<div class="muted card">Nic nie znaleziono.</div>') : '');
 }
 
-/* =====================  ROUTER  ===================== */
 const VIEWS = { start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe, shopping: vShopping, more: vMore, plants: vPlants, events: vEvents, notes: vNotes, chat: vChat, settings: vSettings, search: vSearch };
+
+/* =====================  ROUTER  ===================== */
 function render() {
   $('#view').innerHTML = VIEWS[route.v](route.p);
   const m = { start: 'start', links: 'links', recipes: 'recipes', recipe: 'recipes', shopping: 'shopping' }[route.v] || 'more';
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.t === m));
-  $('#fab').classList.toggle('hidden', route.v === 'chat' || route.v === 'settings');
+  $('#fab').classList.toggle('hidden', ['chat', 'settings', 'recipe', 'search'].includes(route.v));
   if (route.v === 'chat') window.scrollTo(0, document.body.scrollHeight);
 }
 function go(v, p) { stack.push(route); route = { v, p }; render(); window.scrollTo(0, 0); }
@@ -653,7 +709,7 @@ async function handleAdd(text, img) {
 }
 
 const BROWSER_UA = 'Mozilla/5.0 (Linux; Android 14; SM-A546B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';
-const BAD_TITLE = /^(error|facebook$|log in|log into|zaloguj|instagram$|just a moment|access denied|attention required|403|404|forbidden|page not found)/i;
+const BAD_TITLE = /^(error|facebook$|facebook\s*[-–—|]|log in|log into|zaloguj|instagram$|instagram\s*[-–—|]|just a moment|access denied|attention required|403|404|forbidden|page not found|you must log in|musisz się zalogować)/i;
 const SOCIAL_RE = /facebook|fb\.watch|fb\.com|instagram|tiktok/i;
 const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
 function ogTag(html, name) {
@@ -677,11 +733,16 @@ async function getMeta(url) {
     const j = await r.json();
     if (j && !j.error) { meta.title = j.title || ''; meta.img = j.thumbnail_url || ''; }
   } catch (e) { /* idziemy dalej */ }
-  try { // znaczniki Open Graph ze strony (dla Facebooka jako robot podglądu)
-    const ua = social ? 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)' : BROWSER_UA;
-    const r = await withTimeout(fetch(url, { headers: { 'User-Agent': ua, 'Accept-Language': 'pl,en;q=0.8' } }), 12000);
-    meta.html = await r.text();
-  } catch (e) { /* brak dostępu */ }
+  // znaczniki Open Graph ze strony; dla portali społecznościowych próbujemy kolejno kilku "przeglądarek"
+  const uas = social ? ['facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)', 'Twitterbot/1.0', BROWSER_UA] : [BROWSER_UA];
+  for (const ua of uas) {
+    try {
+      const r = await withTimeout(fetch(url, { headers: { 'User-Agent': ua, 'Accept-Language': 'pl,en;q=0.8', 'Accept': 'text/html,application/xhtml+xml' } }), 12000);
+      const t = await r.text();
+      if (!meta.html) meta.html = t;
+      if (ogTag(t, 'og:image') || ogTag(t, 'og:title')) { meta.html = t; break; }
+    } catch (e) { /* próbujemy dalej */ }
+  }
   const h = meta.html;
   if (h) {
     const t = ogTag(h, 'og:title') || decodeHtml(((h.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').trim());
@@ -894,6 +955,7 @@ const A = {
   gsearch2: () => { route.p = val('gq'); render(); },
 
   /* linki */
+  linkFilter: (d) => { linkFilter = d.k; render(); },
   openLink: (d) => { const l = byId(S.links, d.id); if (l && l.url) window.open(l.url, '_blank'); },
   editLink: (d) => openLinkEditor(byId(S.links, d.id)),
   saveLink: () => {
@@ -1022,6 +1084,7 @@ function init() {
     const en = ev.target.dataset && ev.target.dataset.enter;
     if (en && ev.key === 'Enter' && !(ev.shiftKey && en === 'chatSend')) { ev.preventDefault(); A[en](); }
   });
+  document.querySelectorAll('.ni').forEach(e => { e.innerHTML = ic(e.dataset.i, +e.dataset.s || 26); });
   document.addEventListener('change', ev => {
     if (ev.target.id === 'sProv') {
       const p = PROVIDERS[ev.target.value];

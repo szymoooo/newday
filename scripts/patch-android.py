@@ -96,6 +96,48 @@ def make_icons(res):
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#EE7A38</color>\n</resources>\n')
 
 
+# ---------------------------------------------------------------- ekran startowy (splash)
+SPLASH_BG = (234, 121, 56)  # środek gradientu ikony; ten sam kolor w Androidzie 12+
+
+
+def make_splash(res):
+    """Podmienia domyślny ekran startowy Capacitor (białe tło + logo) na pomarańczowe tło z białym słońcem
+    i ustawia go także dla Androida 12+ (windowSplashScreen*)."""
+    import glob
+    from PIL import Image
+    paths = glob.glob(os.path.join(res, 'drawable*', 'splash.png'))
+    if not paths:
+        os.makedirs(os.path.join(res, 'drawable'), exist_ok=True)
+        paths = [os.path.join(res, 'drawable', 'splash.png')]
+    for p in paths:
+        try:
+            w, h = Image.open(p).size
+        except Exception:
+            w, h = 480, 320
+        n = int(min(w, h) * 0.34)
+        img = Image.new('RGBA', (w, h), SPLASH_BG + (255,))
+        img.alpha_composite(_sun(n), ((w - n) // 2, (h - n) // 2))
+        img.convert('RGB').save(p)
+    vals = os.path.join(res, 'values')
+    os.makedirs(vals, exist_ok=True)
+    open(os.path.join(vals, 'mojdzien_splash.xml'), 'w', encoding='utf-8').write(
+        '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="splash_bg">#%02X%02X%02X</color>\n</resources>\n' % SPLASH_BG)
+    sp = os.path.join(vals, 'styles.xml')
+    if os.path.exists(sp):
+        s = open(sp, encoding='utf-8').read()
+        if 'windowSplashScreenBackground' not in s:
+            s, n = re.subn(
+                r'(<style name="AppTheme\.NoActionBarLaunch"[^>]*>)(.*?)(</style>)',
+                lambda mm: mm.group(1) + mm.group(2) +
+                '    <item name="windowSplashScreenBackground">@color/splash_bg</item>\n'
+                '        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>\n    ' + mm.group(3),
+                s, count=1, flags=re.S)
+            if n:
+                open(sp, 'w', encoding='utf-8').write(s)
+            else:
+                print('WARNING: AppTheme.NoActionBarLaunch not found in styles.xml')
+
+
 # ---------------------------------------------------------------- reszta
 def main():
     build = (os.environ.get('BUILD_NUMBER') or '0').strip()
@@ -125,6 +167,8 @@ def main():
             perms += '    <uses-permission android:name="%s" />\n' % p
     if perms:
         m = re.sub(r'<application', perms + '    <application', m, count=1)
+    if 'windowSoftInputMode' not in m:  # klawiatura zmniejsza widok zamiast go przykrywać
+        m = re.sub(r'<activity\b', '<activity android:windowSoftInputMode="adjustResize"', m, count=1)
     open(manifest_path, 'w', encoding='utf-8').write(m)
 
     pkg_dir = os.path.join('android/app/src/main/java', *app_id.split('.'))
@@ -179,6 +223,11 @@ public class MainActivity extends BridgeActivity {
         print('Icon: generated')
     except Exception as e:  # build nie powinien się wywrócić przez ikonę
         print('WARNING: icon not generated:', e)
+    try:
+        make_splash('android/app/src/main/res')
+        print('Splash: generated')
+    except Exception as e:
+        print('WARNING: splash not generated:', e)
 
     # wersja aplikacji w systemie Android
     gp = 'android/app/build.gradle'

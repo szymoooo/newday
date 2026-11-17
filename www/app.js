@@ -5,6 +5,9 @@
    ======================================================= */
 
 const KEY = 'mojdzien.v1';
+const APP_VERSION = (typeof window !== 'undefined' && window.APP_VERSION) || 'dev';
+const APP_DATE = (typeof window !== 'undefined' && window.APP_DATE) || '';
+const APP_CFG = (typeof window !== 'undefined' && window.APP_CONFIG) || {};
 const DEF = {
   settings: { name: 'Ania', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-5-5', baseUrl: '' },
   links: [], recipes: [], shopping: [], plants: [], events: [], notes: [], chat: []
@@ -28,7 +31,16 @@ const plShort = s => new Date(s + 'T12:00:00').toLocaleDateString('pl-PL', { wee
 const addDays = (s, n) => { const d = new Date(s + 'T12:00:00'); d.setDate(d.getDate() + n); return ymd(d); };
 const daysBetween = (a, b) => Math.round((new Date(b + 'T12:00:00') - new Date(a + 'T12:00:00')) / 864e5);
 const cap1 = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
-const hasKey = () => !!(S && S.settings.apiKey);
+function aiCfg() {
+  const st = S.settings, own = !!st.apiKey;
+  return {
+    provider: own ? (st.provider || 'anthropic') : (APP_CFG.provider || st.provider || 'anthropic'),
+    apiKey: st.apiKey || APP_CFG.apiKey || '',
+    model: own ? st.model : (APP_CFG.model || st.model),
+    baseUrl: own ? st.baseUrl : (APP_CFG.baseUrl || st.baseUrl)
+  };
+}
+const hasKey = () => !!(S && aiCfg().apiKey);
 
 function load() {
   try {
@@ -114,7 +126,7 @@ const PROVIDERS = {
 };
 async function claude(opts) {
   if (!hasKey()) throw new Error('NO_KEY');
-  const st = S.settings, prov = st.provider || 'anthropic';
+  const st = aiCfg(), prov = st.provider || 'anthropic';
   const msgs = opts.messages.map(m => ({ role: m.role, parts: typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content }));
   let r, j;
   if (prov === 'gemini') {
@@ -462,7 +474,8 @@ function vStart() {
     '<h2>Plan dnia</h2><div class="card flush">' + rows + '</div>' +
     '<h2>Szybkie akcje</h2><div class="grid">' +
     tile('add', 'plus', 'c-red', 'Dodaj') + tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('newEvent', 'cal', 'c-blue', 'Wydarzenie') +
-    tile('tab', 'cart', 'c-pink', 'Zakupy', 'shopping') + tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>';
+    tile('tab', 'cart', 'c-pink', 'Zakupy', 'shopping') + tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>' +
+    '<div class="muted" style="text-align:center;margin-top:26px">Mój Dzień · wersja ' + esc(APP_VERSION) + '</div>';
 }
 function evRow(e, late, edit) {
   const lead = e.kind === 'task'
@@ -632,7 +645,9 @@ function buildContext() {
 /* --- Ustawienia --- */
 function vSettings() {
   const st = S.settings, prov = st.provider || 'anthropic';
+  const builtIn = APP_CFG.apiKey && !st.apiKey;
   return hdr('Ustawienia', true) + '<div class="card">' +
+    (APP_CFG.apiKey ? '<span class="chip green">Klucz AI wbudowany w aplikację' + (builtIn ? ' - jest używany' : ' - zastąpiony Twoim kluczem poniżej') + '</span><p class="muted">Pola poniżej są opcjonalne: wpisz własny klucz tylko wtedy, gdy chcesz zastąpić wbudowany. Wyczyść pole klucza, aby wrócić do wbudowanego.</p>' : '') +
     '<label>Twoje imię (powitanie)</label><input id="sName" value="' + esc(st.name) + '">' +
     '<label>Dostawca AI</label><select id="sProv">' + Object.keys(PROVIDERS).map(k => '<option value="' + k + '" ' + (k === prov ? 'selected' : '') + '>' + esc(PROVIDERS[k].label) + '</option>').join('') + '</select>' +
     '<label>Klucz API</label><input id="sKey" type="password" value="' + esc(st.apiKey) + '" placeholder="wklej klucz">' +
@@ -640,7 +655,8 @@ function vSettings() {
     '<div id="sBaseWrap" class="' + (prov === 'openai' ? '' : 'hidden') + '"><label>Adres API (kompatybilny z OpenAI)</label><input id="sBase" value="' + esc(st.baseUrl || PROVIDERS.openai.base) + '"></div>' +
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
-    '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button></div></div>';
+    '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button></div></div>' +
+    '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
 }
 
 /* --- Szukaj wszędzie --- */

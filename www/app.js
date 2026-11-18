@@ -159,13 +159,20 @@ function sourceOf(u) {
 /* ---------- powiadomienia (Capacitor Local Notifications) ---------- */
 const LN = () => (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null;
 function nid(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return (Math.abs(h) % 2147483000) + 1; }
+let chanReady = false;
+async function ensureChannel(p) {
+  if (chanReady) return;
+  try { await p.createChannel({ id: 'mojdzien_alerts', name: 'Przypomnienia', description: 'Wydarzenia, zadania i podlewanie', importance: 4, sound: 'mojdzien_chime.wav', vibration: true, visibility: 1 }); } catch (e) {}
+  chanReady = true;
+}
 async function notify(key, title, body, at) {
   const p = LN(); if (!p || !(at > new Date())) return;
   try {
     const perm = await p.requestPermissions();
     if (perm.display !== 'granted') return;
+    await ensureChannel(p);
     await p.cancel({ notifications: [{ id: nid(key) }] });
-    await p.schedule({ notifications: [{ id: nid(key), title, body, schedule: { at, allowWhileIdle: true } }] });
+    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts', schedule: { at, allowWhileIdle: true } }] });
   } catch (e) { /* brak zgody / brak natywnego środowiska */ }
 }
 async function unnotify(key) { const p = LN(); if (p) { try { await p.cancel({ notifications: [{ id: nid(key) }] }); } catch (e) {} } }
@@ -1572,12 +1579,13 @@ async function scheduleEvent(e) {
     if (!occursOn(e, d) || isDoneOn(e, d)) continue;
     rems.forEach(min => {
       const at = new Date(d + 'T' + (e.time || '09:00') + ':00'); at.setMinutes(at.getMinutes() - min);
-      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), schedule: { at, allowWhileIdle: true } });
+      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts', schedule: { at, allowWhileIdle: true } });
     });
   }
   if (!list.length) return;
   try {
     const perm = await p.requestPermissions(); if (perm.display !== 'granted') return;
+    await ensureChannel(p);
     await p.schedule({ notifications: list });
     S.nids = S.nids || {}; S.nids[e.id] = list.map(n => n.id); save();
   } catch (err) { /* brak zgody / brak natywnego środowiska */ }

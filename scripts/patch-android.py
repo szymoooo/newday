@@ -174,6 +174,12 @@ def main():
         m = re.sub(r'<activity\b', '<activity android:windowSoftInputMode="adjustResize"', m, count=1)
     open(manifest_path, 'w', encoding='utf-8').write(m)
 
+    # własny dźwięk powiadomień (res/raw) - kanał "mojdzien_alerts" używa go w app.js
+    import shutil
+    raw = 'android/app/src/main/res/raw'
+    os.makedirs(raw, exist_ok=True)
+    shutil.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sounds', 'mojdzien_chime.wav'), os.path.join(raw, 'mojdzien_chime.wav'))
+
     pkg_dir = os.path.join('android/app/src/main/java', *app_id.split('.'))
     os.makedirs(pkg_dir, exist_ok=True)
     java = """package %s;

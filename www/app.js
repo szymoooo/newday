@@ -162,7 +162,8 @@ function nid(s) { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCode
 let chanReady = false;
 async function ensureChannel(p) {
   if (chanReady) return;
-  try { await p.createChannel({ id: 'mojdzien_alerts', name: 'Przypomnienia', description: 'Wydarzenia, zadania i podlewanie', importance: 4, sound: 'mojdzien_chime.wav', vibration: true, visibility: 1 }); } catch (e) {}
+  try { await p.deleteChannel({ id: 'mojdzien_alerts' }); } catch (e) {}
+  try { await p.createChannel({ id: 'mojdzien_alerts_v2', name: 'Przypomnienia', description: 'Wydarzenia, zadania i podlewanie', importance: 4, sound: 'mojdzien_cowbell.wav', vibration: true, visibility: 1 }); } catch (e) {}
   chanReady = true;
 }
 async function notify(key, title, body, at) {
@@ -172,7 +173,7 @@ async function notify(key, title, body, at) {
     if (perm.display !== 'granted') return;
     await ensureChannel(p);
     await p.cancel({ notifications: [{ id: nid(key) }] });
-    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts', schedule: { at, allowWhileIdle: true } }] });
+    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts_v2', schedule: { at, allowWhileIdle: true } }] });
   } catch (e) { /* brak zgody / brak natywnego środowiska */ }
 }
 async function unnotify(key) { const p = LN(); if (p) { try { await p.cancel({ notifications: [{ id: nid(key) }] }); } catch (e) {} } }
@@ -702,6 +703,8 @@ Object.assign(ICONS, {
   r_przetwory: "<path d=\"M7 8h10v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z\"/><path d=\"M8 3h8v5H8z\"/>",
   r_grill: "<path d=\"M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-4-1-7-4-9 0 5-4 7-4 12 0 4 3 8 7 8z\"/>",
   r_bezglutenu: "<path d=\"M12 22V9\"/><path d=\"M12 9c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 9c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 14c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 14c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 19c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 19c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M3 3l18 18\"/>",
+  k_weterynarz: "<path d=\"M11 2v2\"/><path d=\"M5 2v2\"/><path d=\"M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1\"/><path d=\"M8 15a6 6 0 0 0 12 0v-3\"/><circle cx=\"20\" cy=\"10\" r=\"2\"/>",
+  k_groomer: "<circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><path d=\"M20 4 8.12 15.88\"/><path d=\"M14.47 14.48 20 20\"/><path d=\"M8.12 8.12 12 12\"/>",
   k_karmienie: "<path d=\"M3 12h18l-1.6 6.4a2 2 0 0 1-1.94 1.6H6.54a2 2 0 0 1-1.94-1.6z\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.3\"/><circle cx=\"12\" cy=\"6.5\" r=\"1.3\"/><circle cx=\"15.5\" cy=\"8.5\" r=\"1.3\"/>",
   k_zwierzeta: "<circle cx=\"11\" cy=\"4\" r=\"2\"/><circle cx=\"18\" cy=\"8\" r=\"2\"/><circle cx=\"20\" cy=\"16\" r=\"2\"/><path d=\"M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z\"/>",
   k_dom: "<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>",
@@ -718,11 +721,13 @@ Object.assign(ICONS, {
   k_urzedy: "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6M16 13H8M16 17H8M10 9H8\"/>",
   k_inne: "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>"
 });
-const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['karmienie', 'Karmienie zwierząt'], ['zwierzeta', 'Zwierzęta'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
+const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['weterynarz', 'Weterynarz'], ['groomer', 'Fryzjer dla zwierząt'], ['karmienie', 'Karmienie zwierząt'], ['zwierzeta', 'Zwierzęta'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
 const CAT_RULES = [
   ['leki', '', 'leki|lek|leków|tabletka|tabletki|tabletek|suplement|suplementy|witaminy|witamina|krople|antybiotyk'],
-  ['karmienie', 'karmieni|nakarm|karma dla|jedzenie dla psa|jedzenie dla kota', 'miska|miski|gabi|haru|harry'],
-  ['zwierzeta', 'weteryn|zwierz|szczepienie psa|spacer z psem|karmienie', 'pies|psa|psem|kot|kota|kotem|chomik|rybki'],
+  ['weterynarz', 'weteryn|(?:gabi|haru)\\s+(?:u\\s+)?(?:szczepieni|lekarz|badani|zastrzyk|kontrol)|szczepienie psa|szczepienie kota|odrobacz|kastracj|sterylizacj', ''],
+  ['groomer', 'fryzjer (?:dla )?(?:psa|kota|gabi|haru)|(?:gabi|haru)\\s+(?:u\\s+)?(?:fryzjer|groomer|strzyż|strzyz|kąpiel|kapiel)|groomer|strzyżenie psa|strzyzenie psa|trymowanie|kąpiel psa|kapiel psa|obcinanie pazurów', ''],
+  ['karmienie', 'karmieni|nakarm|karma |jedzenie dla|(?:posił|posil|obiad|kolacj|śniadan|sniadan)\\p{L}* (?:dla )?(?:gabi|haru)|(?:gabi|haru)\\s+(?:posił|posil|jedzeni|karm|obiad|kolacj|śniadan|sniadan)', 'miska|miski'],
+  ['zwierzeta', 'zwierz|spacer z psem|spacer z', 'pies|psa|psem|kot|kota|kotem|chomik|rybki|gabi|haru'],
   ['zdrowie', 'lekarz|dentyst|szpital|badani|przychodni|ortodont|okulist|fizjoterap|rehabilit|szczepien|poradni|wizyta u|kardiolog|dermatolog|ginekolog|laryngolog', 'usg|krew|kontrola'],
   ['urodziny', 'urodzin|imienin|prezent|święt|wigili|rocznic|ślub|wesel|chrzci|komuni|andrzejk', ''],
   ['podroz', 'podróż|wyjazd|samolot|pociąg|urlop|wakacj|hotel|bilet|lotnisk|wycieczk', 'lot'],
@@ -1024,7 +1029,7 @@ AKCJE, które aplikacja potrafi wykonać (pole "type"):
 - {"type":"plant_watered","name":"..."} - zapisz, że roślina została podlana
 - {"type":"web_search","query":"..."} - wyszukaj w internecie (TYLKO gdy użytkownik prosi o sprawdzenie w internecie albo pyta o aktualne fakty, ceny, godziny, wydarzenia). Wtedy w \"reply\" napisz krótko, że szukasz, i nie dawaj innych akcji. Wyniki dostaniesz w następnej wiadomości - wtedy odpowiedz na ich podstawie i podaj źródła, jeśli są.
 
-KATEGORIE wydarzeń (pole category): praca, zdrowie, leki, karmienie (posiłki/karmienie psów Gabi i Haru oraz innych zwierząt), zwierzeta, dom, zakupy, rodzina, nauka, sport, spotkanie, urodziny, podroz, auto, finanse, uroda, urzedy, inne. Zawsze wybierz najlepiej pasującą (np. weterynarz -> zwierzeta, lekarz/dentysta -> zdrowie, tabletki -> leki, rachunek -> finanse); gdy nic nie pasuje: inne. O kategorię NIGDY nie pytaj.
+KATEGORIE wydarzeń (pole category): praca, zdrowie, leki, weterynarz (wizyta u weterynarza), groomer (fryzjer/kąpiel/strzyżenie zwierzęcia), karmienie (TYLKO jedzenie/posiłki/karmienie zwierząt), zwierzeta (inne sprawy zwierząt, np. spacer; Gabi i Haru to psy użytkownika - wizyta u weterynarza lub fryzjera to NIE karmienie), dom, zakupy, rodzina, nauka, sport, spotkanie, urodziny, podroz, auto, finanse, uroda, urzedy, inne. Zawsze wybierz najlepiej pasującą (np. weterynarz -> zwierzeta, lekarz/dentysta -> zdrowie, tabletki -> leki, rachunek -> finanse); gdy nic nie pasuje: inne. O kategorię NIGDY nie pytaj.
 
 ZASADY:
 1. Gdy użytkownik wyraźnie prosi o dodanie lub zapisanie czegoś albo potwierdza Twoją propozycję („dodaj”, „tak”, „zapisz to”, „ok”), WYKONAJ akcję od razu: wpisz ją do "actions" i krótko potwierdź w "reply".
@@ -1579,7 +1584,7 @@ async function scheduleEvent(e) {
     if (!occursOn(e, d) || isDoneOn(e, d)) continue;
     rems.forEach(min => {
       const at = new Date(d + 'T' + (e.time || '09:00') + ':00'); at.setMinutes(at.getMinutes() - min);
-      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts', schedule: { at, allowWhileIdle: true } });
+      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts_v2', schedule: { at, allowWhileIdle: true } });
     });
   }
   if (!list.length) return;

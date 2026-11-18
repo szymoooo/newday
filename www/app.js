@@ -685,10 +685,10 @@ const tile = (act, icon, color, label, v) => '<button class="tile" data-act="' +
 
 function vStart() {
   const td = today(), now = new Date();
-  const ev = S.events.filter(e => e.date === td).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  const ev = S.events.filter(e => occursOn(e, td)).map(e => occ(e, td)).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
   const pl = S.plants.filter(p => { const d = plantDue(p); return d.water <= 0 || d.fert <= 0; });
   const open = S.shopping.filter(x => !x.done).length;
-  const overdue = S.events.filter(e => e.kind === 'task' && !e.done && e.date < td);
+  const overdue = S.events.filter(e => !e.rep && e.kind === 'task' && !e.done && e.date < td);
   let rows = '', count = 0;
   overdue.forEach(e => { rows += evRow(e, true); count++; });
   ev.forEach(e => { rows += evRow(e); count++; });
@@ -714,9 +714,9 @@ function vStart() {
 }
 function evRow(e, late, edit) {
   const lead = e.kind === 'task'
-    ? '<button class="check ' + (e.done ? 'on' : '') + '" data-act="evDone" data-id="' + e.id + '" aria-label="Zrobione">' + (e.done ? ic('check', 18, 3) : '') + '</button>'
+    ? '<button class="check ' + (e.done ? 'on' : '') + '" data-act="evDone" data-id="' + e.id + '" data-date="' + (e.occDate || '') + '" aria-label="Zrobione">' + (e.done ? ic('check', 18, 3) : '') + '</button>'
     : '<span class="ico sm c-blue">' + ic('cal') + '</span>';
-  const meta = [e.time, e.kind === 'task' ? 'zadanie' : 'wydarzenie'].filter(Boolean).join(' · ');
+  const meta = [e.time, e.kind === 'task' ? 'zadanie' : 'wydarzenie', e.rep ? '🔁 ' + repLabel(e) : ''].filter(Boolean).join(' · ');
   return '<div class="prow">' + lead + '<div class="grow ' + (e.done ? 'done' : '') + '"' + (edit ? ' data-act="editEvent" data-id="' + e.id + '"' : '') + '><div class="t">' + esc(e.title) + '</div><div class="muted">' + esc(meta) +
     (late ? ' · <span class=warn>zaległe</span>' : '') + (e.note ? '<br>' + esc(e.note) : '') + '</div></div></div>';
 }
@@ -837,11 +837,14 @@ function vPlants() {
 
 /* --- Kalendarz --- */
 function vEvents() {
-  const td = today();
-  const list = S.events.filter(e => e.date >= td || (e.kind === 'task' && !e.done))
-    .sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
+  const td = today(), items = [];
+  S.events.forEach(e => {
+    if (!e.rep) { if (e.date >= td || (e.kind === 'task' && !e.done)) items.push(occ(e, e.date)); return; }
+    for (let k = 0, n = 0; k <= 60 && n < 14; k++) { const d = addDays(td, k); if (occursOn(e, d)) { items.push(occ(e, d)); n++; } }
+  });
+  items.sort((a, b) => (a.date + (a.time || '')).localeCompare(b.date + (b.time || '')));
   let html = '', last = '';
-  list.forEach(e => {
+  items.forEach(e => {
     if (e.date !== last) { html += '<h2>' + (e.date < td ? 'Zaległe' : e.date === td ? 'Dziś' : esc(plShort(e.date))) + '</h2>'; last = e.date; }
     html += '<div class="card flush">' + evRow(e, false, true) + '</div>';
   });
@@ -891,7 +894,8 @@ AKCJE, które aplikacja potrafi wykonać (pole "type"):
 - {"type":"shopping_add","items":["chleb","masło"]} - dodaj produkty do listy zakupów
 - {"type":"shopping_done","items":["chleb"]} - oznacz produkty jako kupione
 - {"type":"recipe_to_shopping","title":"nazwa przepisu z listy PRZEPISY"} - dodaj składniki przepisu do zakupów
-- {"type":"event_add","title":"...","date":"YYYY-MM-DD","time":"HH:MM albo pusty","kind":"event albo task","note":""} - dodaj wydarzenie lub zadanie do kalendarza
+- {"type":"event_add","title":"...","date":"YYYY-MM-DD (pierwszy dzień)","time":"HH:MM albo pusty","kind":"event albo task","note":"","repeat":null albo {"type":"daily|weekly|monthly|yearly","days":[1-7 dla weekly: 1=pon ... 7=niedz],"until":"YYYY-MM-DD albo pusty"},"remind_before":[minuty przed, np. 0,60,120,180,1440]} - dodaj wydarzenie lub zadanie (także cykliczne) do kalendarza
+- {"type":"event_edit","title":"tytuł istniejącego wydarzenia","title_new":"","date":"","time":"","repeat":{...},"remind_before":[...]} - zmień istniejące wydarzenie (podaj tylko zmieniane pola; repeat: null = wyłącz powtarzanie)
 - {"type":"task_done","title":"..."} - oznacz zadanie jako zrobione
 - {"type":"note_add","text":"..."} - zapisz notatkę
 - {"type":"plant_watered","name":"..."} - zapisz, że roślina została podlana
@@ -902,7 +906,8 @@ ZASADY:
 2. Gdy użytkownik tylko wspomina o potrzebie (np. „szukam chleba”), zaproponuj dodanie i zapytaj, z pustym "actions".
 3. NIGDY nie pisz, że coś dodałeś lub zapisałeś, jeśli nie ma odpowiedniej akcji w "actions". Jeśli czegoś nie potrafisz zrobić, powiedz to wprost.
 4. Nie powtarzaj akcji, które pojawiły się już w Twoich wcześniejszych odpowiedziach.
-5. Daty wyliczaj względem dzisiejszej daty z danych. Gdy nie ma nic do zrobienia: "actions":[].
+5. WYDARZENIA - DOPYTYWANIE. Zanim wykonasz event_add, upewnij się, że znasz: (a) czy wydarzenie się powtarza - zapytaj, jeśli z treści nie wynika wyraźnie, że jest jednorazowe (np. „jutro o 10 wizyta u lekarza” to jednorazowe, nie pytaj; „leki o 11” bez daty lub „codziennie” - pytaj/uwzględnij); gdy się powtarza: jak często (codziennie / co tydzień - w które dni / co miesiąc / co rok) i do kiedy (np. „do końca roku” = 31 grudnia bieżącego roku); (b) przypomnienia - dla CODZIENNEGO zapytaj, czy przypomnieć o czasie, czy 1, 2 lub 3 godziny wcześniej; dla CO TYDZIEŃ zapytaj, czy przypomnieć dzień wcześniej i/lub w dniu wydarzenia 1, 2 lub 3 godziny wcześniej. Przy zwykłym jednorazowym wydarzeniu z godziną nie pytaj o przypomnienie - użyj remind_before [0]. Zadaj wszystkie brakujące pytania w JEDNEJ krótkiej wiadomości i NIE wykonuj event_add, dopóki nie dostaniesz odpowiedzi; odpowiedź „bez przypomnienia” lub „jednorazowo” rozstrzyga. Gdy użytkownik poda wszystko od razu - wykonaj od razu. Jeśli prosi o zmianę istniejącego wydarzenia (np. „ustaw powtarzanie codziennie”), użyj event_edit (i dopytaj o przypomnienia, jeśli ich brak). Nigdy nie mów, że nie umiesz wydarzeń cyklicznych - umiesz.
+6. Daty wyliczaj względem dzisiejszej daty z danych. Gdy nie ma nic do zrobienia: "actions":[].
 
 DANE UŻYTKOWNIKA:
 `;
@@ -1006,14 +1011,27 @@ function runActions(actions) {
         case 'event_add': {
           const title = String(a.title || '').trim(); if (!title) break;
           const time = /^\d{1,2}:\d{2}$/.test(a.time || '') ? String(a.time).padStart(5, '0') : '';
-          const e = { id: uid(), title, date: /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : today(), time, kind: a.kind === 'task' ? 'task' : 'event', note: String(a.note || ''), done: false, remind: time ? 0 : -1 };
+          const date0 = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : today();
+          const rems = Array.isArray(a.remind_before) ? normRems(a.remind_before) : (time ? [0] : []);
+          const e = { id: uid(), title, date: date0, time, kind: a.kind === 'task' ? 'task' : 'event', note: String(a.note || ''), done: false, rems, remind: rems.length ? rems[0] : -1, rep: normRepeat(a.repeat, date0) };
           S.events.push(e); scheduleEvent(e);
-          acts.push((e.kind === 'task' ? 'Dodano zadanie: ' : 'Dodano wydarzenie: ') + e.title + ' (' + plShort(e.date) + (e.time ? ', ' + e.time : '') + ')');
+          acts.push((e.kind === 'task' ? 'Dodano zadanie: ' : 'Dodano wydarzenie: ') + e.title + ' (' + plShort(e.date) + (e.time ? ', ' + e.time : '') + (e.rep ? ', ' + repLabel(e) : '') + ')');
+          break;
+        }
+        case 'event_edit': {
+          const e = findFuzzy(S.events, a.title, x => x.title);
+          if (!e) { acts.push('Nie znalazłem wydarzenia: ' + a.title); break; }
+          if (a.title_new) e.title = String(a.title_new);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(a.date || '')) e.date = a.date;
+          if (/^\d{1,2}:\d{2}$/.test(a.time || '')) e.time = String(a.time).padStart(5, '0');
+          if ('repeat' in a) e.rep = normRepeat(a.repeat, e.date);
+          if (Array.isArray(a.remind_before)) { e.rems = normRems(a.remind_before); e.remind = e.rems.length ? e.rems[0] : -1; }
+          scheduleEvent(e); acts.push('Zmieniono: ' + e.title + (e.rep ? ' (' + repLabel(e) + ')' : ''));
           break;
         }
         case 'task_done': {
-          const e = findFuzzy(S.events.filter(x => !x.done), a.title, x => x.title);
-          if (e) { e.done = true; scheduleEvent(e); acts.push('Zrobione: ' + e.title); }
+          const e = findFuzzy(S.events.filter(x => !isDoneOn(x, today())), a.title, x => x.title);
+          if (e) { if (e.rep) { e.doneDates = e.doneDates || []; e.doneDates.push(today()); } else e.done = true; scheduleEvent(e); acts.push('Zrobione: ' + e.title); }
           break;
         }
         case 'note_add': {
@@ -1037,7 +1055,7 @@ function buildContext() {
   const td = today();
   const c = [];
   c.push('Dzisiaj: ' + plDate(new Date()) + ' (' + td + '). Użytkownik: ' + S.settings.name + '.');
-  c.push('WYDARZENIA/ZADANIA: ' + (S.events.filter(e => e.date >= td || (e.kind === 'task' && !e.done)).slice(0, 25).map(e => e.date + ' ' + (e.time || '') + ' ' + e.title + (e.done ? ' [zrobione]' : '')).join('; ') || 'brak'));
+  c.push('WYDARZENIA/ZADANIA: ' + (S.events.filter(e => e.rep || e.date >= td || (e.kind === 'task' && !e.done)).slice(0, 30).map(e => e.date + ' ' + (e.time || '') + ' ' + e.title + (e.rep ? ' [powtarza się: ' + repLabel(e) + ']' : '') + (evRems(e).length ? ' [przypomnienia min przed: ' + evRems(e).join(',') + ']' : '') + (e.done ? ' [zrobione]' : '')).join('; ') || 'brak'));
   c.push('ZAKUPY: ' + (S.shopping.filter(x => !x.done).map(x => x.text).join('; ') || 'pusto'));
   c.push('PRZEPISY: ' + (S.recipes.map(r => r.title + ' (' + r.groups.flatMap(g => g.items.map(i => i.n || i.raw)).slice(0, 12).join(', ') + ')').join(' | ') || 'brak'));
   c.push('LINKI: ' + (S.links.slice(0, 60).map(l => (l.title || '') + ' <' + l.url + '> ' + (l.tags || []).join(',')).join(' | ') || 'brak'));
@@ -1361,17 +1379,81 @@ function openEventEditor(e, isNew) {
     <label>Tytuł</label><input id="eTitle" value="${esc(e.title || '')}">
     <div class="cols2"><div><label>Data</label><input id="eDate" type="date" value="${esc(e.date || today())}"></div>
     <div><label>Godzina</label><input id="eTime" type="time" value="${esc(e.time || '')}"></div></div>
-    <div class="cols2"><div><label>Rodzaj</label><select id="eKind"><option value="event" ${e.kind !== 'task' ? 'selected' : ''}>Wydarzenie</option><option value="task" ${e.kind === 'task' ? 'selected' : ''}>Zadanie</option></select></div>
-    <div><label>Przypomnienie</label><select id="eRemind">${[['-1', 'brak'], ['0', 'o czasie'], ['10', '10 min wcześniej'], ['30', '30 min wcześniej'], ['60', '1 h wcześniej'], ['1440', '1 dzień wcześniej']].map(o => `<option value="${o[0]}" ${String(e.remind == null ? '0' : e.remind) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div></div>
+    <label>Rodzaj</label><select id="eKind"><option value="event" ${e.kind !== 'task' ? 'selected' : ''}>Wydarzenie</option><option value="task" ${e.kind === 'task' ? 'selected' : ''}>Zadanie</option></select>
+    <label>Powtarzaj</label><select id="ePrep">${[['', 'nie powtarzaj'], ['d', 'codziennie'], ['w', 'co tydzień'], ['m', 'co miesiąc'], ['y', 'co rok']].map(o => `<option value="${o[0]}" ${(e.rep ? e.rep.t : '') === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>
+    <div id="eRepBox" style="display:${e.rep ? 'block' : 'none'}">
+      <div id="eDaysBox" style="display:${e.rep && e.rep.t === 'w' ? 'block' : 'none'}"><label>Dni tygodnia</label><div class="remrow">${[1, 2, 3, 4, 5, 6, 0].map(i => `<label class="chipcb"><input type="checkbox" class="eday" value="${i}" ${e.rep && e.rep.days && e.rep.days.includes(i) ? 'checked' : ''}>${DOW_PL[i]}</label>`).join('')}</div></div>
+      <label>Powtarzaj do (puste = bez końca)</label><input id="eUntil" type="date" value="${esc((e.rep && e.rep.until) || '')}">
+    </div>
+    <label>Przypomnienia (możesz zaznaczyć kilka)</label><div class="remrow">${[[0, 'o czasie'], [10, '10 min'], [30, '30 min'], [60, '1 godz.'], [120, '2 godz.'], [180, '3 godz.'], [1440, 'dzień wcześniej']].map(o => `<label class="chipcb"><input type="checkbox" class="erem" value="${o[0]}" ${evRems(e).includes(o[0]) ? 'checked' : ''}>${o[1]}</label>`).join('')}</div>
     <label>Notatka</label><input id="eNote" value="${esc(e.note || '')}">
     <div class="btns foot"><button class="btn" data-act="saveEvent">Zapisz</button>${e.id ? `<button class="btn red" data-act="delEvent" data-id="${e.id}">Usuń</button>` : ''}</div>`);
 }
-function scheduleEvent(e) {
-  unnotify('ev' + e.id);
-  if (e.remind == null || e.remind < 0 || e.done) return;
-  const at = new Date(e.date + 'T' + (e.time || '09:00') + ':00');
-  at.setMinutes(at.getMinutes() - e.remind);
-  notify('ev' + e.id, e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', e.title, at);
+/* --- wydarzenia cykliczne --- */
+const DOW_PL = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'];
+const dateObj = d => new Date(d + 'T12:00:00');
+function evRems(e) { if (Array.isArray(e.rems)) return e.rems; return (e.remind != null && e.remind >= 0) ? [e.remind] : []; }
+function occursOn(e, d) {
+  if (!e.rep) return e.date === d;
+  if (d < e.date || (e.rep.until && d > e.rep.until) || (e.skip || []).includes(d)) return false;
+  const a = dateObj(e.date), b = dateObj(d), t = e.rep.t;
+  if (t === 'd') return true;
+  if (t === 'w') { const days = (e.rep.days && e.rep.days.length) ? e.rep.days : [a.getDay()]; return days.includes(b.getDay()); }
+  if (t === 'm') { const last = new Date(b.getFullYear(), b.getMonth() + 1, 0).getDate(); return a.getDate() === b.getDate() || (a.getDate() > last && b.getDate() === last); }
+  if (t === 'y') return a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  return false;
+}
+const isDoneOn = (e, d) => e.rep ? (e.doneDates || []).includes(d) : !!e.done;
+function occ(e, d) { return Object.assign({}, e, { occDate: d, date: d, done: isDoneOn(e, d) }); }
+function repLabel(e) {
+  if (!e.rep) return '';
+  const t = e.rep.t;
+  let s = t === 'd' ? 'codziennie' : t === 'm' ? 'co miesiąc' : t === 'y' ? 'co rok'
+    : 'co tydzień' + ((e.rep.days && e.rep.days.length) ? ' (' + e.rep.days.slice().sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map(i => DOW_PL[i]).join(', ') + ')' : '');
+  return s + (e.rep.until ? ' do ' + plShort(e.rep.until) : '');
+}
+function normRepeat(r, startDate) {
+  if (!r || typeof r !== 'object') return null;
+  const t = ({ daily: 'd', weekly: 'w', monthly: 'm', yearly: 'y', d: 'd', w: 'w', m: 'm', y: 'y' })[String(r.type || r.t || '').toLowerCase()];
+  if (!t) return null;
+  const out = { t };
+  if (t === 'w') {
+    const days = (Array.isArray(r.days) ? r.days : []).map(n => parseInt(n)).filter(n => n >= 1 && n <= 7).map(n => n % 7);
+    out.days = days.length ? Array.from(new Set(days)) : [dateObj(startDate || today()).getDay()];
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(r.until || '')) out.until = r.until;
+  return out;
+}
+function normRems(a) { return Array.from(new Set((Array.isArray(a) ? a : []).map(n => parseInt(n)).filter(n => n >= 0 && n <= 10080))).sort((x, y) => x - y); }
+function remText(min) { return min === 0 ? '' : min >= 1440 && min % 1440 === 0 ? (min === 1440 ? 'jutro' : 'za ' + min / 1440 + ' dni') : min >= 60 && min % 60 === 0 ? 'za ' + min / 60 + ' godz.' : 'za ' + min + ' min'; }
+async function cancelEventNotifs(id) {
+  const p = LN(); const ids = (S.nids && S.nids[id]) || [];
+  if (p && ids.length) { try { await p.cancel({ notifications: ids.map(i => ({ id: i })) }); } catch (e) {} }
+  if (S.nids) delete S.nids[id];
+  unnotify('ev' + id);
+}
+async function scheduleEvent(e) {
+  await cancelEventNotifs(e.id);
+  const p = LN(), rems = evRems(e);
+  if (!p || !rems.length) return;
+  const now = new Date(), td = today(), list = [];
+  const horizon = e.rep ? (e.rep.t === 'd' ? 21 : e.rep.t === 'w' ? 70 : 400) : 0;
+  const first = e.rep ? td : e.date;
+  for (let k = 0; k <= horizon + 1 && list.length < 120; k++) {
+    const d = e.rep ? addDays(first, k) : e.date;
+    if (k > 0 && !e.rep) break;
+    if (!occursOn(e, d) || isDoneOn(e, d)) continue;
+    rems.forEach(min => {
+      const at = new Date(d + 'T' + (e.time || '09:00') + ':00'); at.setMinutes(at.getMinutes() - min);
+      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), schedule: { at, allowWhileIdle: true } });
+    });
+  }
+  if (!list.length) return;
+  try {
+    const perm = await p.requestPermissions(); if (perm.display !== 'granted') return;
+    await p.schedule({ notifications: list });
+    S.nids = S.nids || {}; S.nids[e.id] = list.map(n => n.id); save();
+  } catch (err) { /* brak zgody / brak natywnego środowiska */ }
 }
 function openNoteEditor(n) {
   n = n || {};
@@ -1489,11 +1571,15 @@ const A = {
     const title = val('eTitle'); if (!title) { toast('Podaj tytuł'); return; }
     let e = byId(S.events, val('eId'));
     if (!e) { e = { id: uid(), done: false }; S.events.push(e); }
-    e.title = title; e.date = val('eDate') || today(); e.time = val('eTime'); e.kind = val('eKind'); e.remind = parseInt(val('eRemind')); e.note = val('eNote');
+    e.title = title; e.date = val('eDate') || today(); e.time = val('eTime'); e.kind = val('eKind'); e.note = val('eNote');
+    e.rems = normRems([...document.querySelectorAll('.erem:checked')].map(c => c.value)); e.remind = e.rems.length ? e.rems[0] : -1;
+    const rt = val('ePrep');
+    e.rep = rt ? normRepeat({ t: rt, days: [...document.querySelectorAll('.eday:checked')].map(c => c.value === '0' ? 7 : +c.value), until: val('eUntil') }, e.date) : null;
+    if (!e.rep) { delete e.doneDates; }
     save(); scheduleEvent(e); closeSheet(); if (route.v === 'events') render(); else go('events');
   },
-  delEvent: (d) => { unnotify('ev' + d.id); S.events = S.events.filter(e => e.id !== d.id); save(); closeSheet(); render(); },
-  evDone: (d) => { const e = byId(S.events, d.id); e.done = !e.done; save(); scheduleEvent(e); render(); },
+  delEvent: (d) => { const e0 = byId(S.events, d.id); if (e0 && e0.rep && !confirm('Usunąć wszystkie powtórzenia tego wydarzenia?')) return; cancelEventNotifs(d.id); S.events = S.events.filter(e => e.id !== d.id); save(); closeSheet(); render(); },
+  evDone: (d) => { const e = byId(S.events, d.id); if (e.rep) { const day = d.date || today(); e.doneDates = e.doneDates || []; const i = e.doneDates.indexOf(day); if (i >= 0) e.doneDates.splice(i, 1); else e.doneDates.push(day); } else e.done = !e.done; save(); scheduleEvent(e); render(); },
 
   /* notatki */
   newNote: () => openNoteEditor(),
@@ -1570,6 +1656,7 @@ function init() {
     if (live === 'links') $('#list').innerHTML = listLinks(ev.target.value);
     if (live === 'recipes') $('#list').innerHTML = listRecipes(ev.target.value, favOnly);
     if (draft && ev.target.closest && ev.target.closest('#panel')) { clearTimeout(saveDraftSoon._t); saveDraftSoon._t = setTimeout(saveDraftSoon, 600); }
+    if (ev.target.id === 'ePrep') { const v = ev.target.value; $('#eRepBox').style.display = v ? 'block' : 'none'; $('#eDaysBox').style.display = v === 'w' ? 'block' : 'none'; }
     if (ev.target.id === 'chatIn') { ev.target.style.height = 'auto'; ev.target.style.height = Math.min(ev.target.scrollHeight, 120) + 'px'; }
   });
   document.addEventListener('keydown', ev => {
@@ -1594,6 +1681,8 @@ function init() {
   if (window.__shared) window.onShared();
   // przypomnienia o roślinach po starcie (np. po restarcie telefonu)
   S.plants.forEach(schedulePlant);
+  S.events.filter(e => e.rep).forEach(e => scheduleEvent(e));
+  try { window.Capacitor.Plugins.App.addListener('resume', () => { S.events.filter(e => e.rep).forEach(e => scheduleEvent(e)); render(); }); } catch (e) {}
   recoverFromIdb();
   try {
     const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');

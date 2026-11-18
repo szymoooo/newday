@@ -171,3 +171,7 @@ nav button.on{background:var(--acc2);color:var(--accd);font-weight:800}
 .btns.foot{flex-wrap:nowrap}
 .btns.foot .btn{flex:1;min-width:0;white-space:nowrap;padding-left:10px;padding-right:10px;justify-content:center}
 .btns.foot .btn:not(.red):not(.ghost){flex:1.7}
+
+.remrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
+.chipcb{display:inline-flex;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:9px 14px;box-shadow:var(--sh);font-weight:700;font-size:14px;margin:0;cursor:pointer}
+.chipcb input{width:auto;height:auto;min-height:0;margin:0;padding:0;box-shadow:none;accent-color:var(--acc,#C8431A)}

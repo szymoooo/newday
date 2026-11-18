@@ -281,6 +281,14 @@ public class MainActivity extends BridgeActivity {
     os.makedirs(ks_dir, exist_ok=True)
     open(os.path.join(ks_dir, 'debug.keystore'), 'wb').write(base64.b64decode(DEBUG_KEYSTORE_B64))
     print('Signing key: fixed debug keystore installed')
+    # jawna konfiguracja podpisu w Gradle (nie polegamy na domyślnej lokalizacji klucza)
+    open('android/app/mojdzien.keystore', 'wb').write(base64.b64decode(DEBUG_KEYSTORE_B64))
+    gp = 'android/app/build.gradle'
+    g = open(gp, encoding='utf-8').read()
+    if 'signingConfigs.mojdzien' not in g:
+        g = g.replace('    buildTypes {', "    signingConfigs {\n        mojdzien {\n            storeFile file('mojdzien.keystore')\n            storePassword 'android'\n            keyAlias 'androiddebugkey'\n            keyPassword 'android'\n        }\n    }\n    buildTypes {\n        debug {\n            signingConfig signingConfigs.mojdzien\n        }", 1)
+        open(gp, 'w', encoding='utf-8').write(g)
+    print('Signing: Gradle uses fixed keystore explicitly')
 
     print('Android project patched OK - version %s (code %d)' % (version_name, version_code))
 

@@ -59,6 +59,13 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
+      - name: Verify signing key (stały podpis)
+        run: |
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner 2>/dev/null | tail -1)
+          if [ -z "$APKSIGNER" ]; then echo "::warning::brak apksigner - pomijam weryfikację"; exit 0; fi
+          $APKSIGNER verify --print-certs android/app/build/outputs/apk/debug/app-debug.apk | tee cert.txt
+          grep -qi "8334f0006761fab08c1acc87d677ce7875f992db1ab3d24952e7c6255196db3d" cert.txt || (echo "::error::APK podpisany INNYM kluczem niż stały" && exit 1)
+
       - name: Rename APK (version in file name)
         run: cp android/app/build/outputs/apk/debug/app-debug.apk MojDzien-1.${{ github.run_number }}.apk
 

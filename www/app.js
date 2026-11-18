@@ -242,16 +242,44 @@ async function claude(opts) {
     const c = list[i];
     try {
       const out = await callAI(c, opts);
-      if (c.id !== chain[0].id) aiNote = 'Użyto zapasowego AI: ' + c.label;
       return out;
     } catch (e) {
       if (!firstErr) firstErr = e;
       if (/limit|quota|429|rate/i.test(String(e && e.message))) aiDownUntil[c.id] = Date.now() + 10 * 60000;
     }
   }
-  throw firstErr;
+  const msg = String((firstErr && firstErr.message) || '');
+  if (/zdjęci/i.test(msg)) throw firstErr;
+  throw new Error('Asystent AI jest chwilowo niedostępny (limity lub brak internetu). Spróbuj za kilka minut - albo zmień dostawcę w Ustawieniach.');
+}
+/* model niedostępny u dostawcy (np. wycofany) -> pobierz listę modeli i wybierz pasujący */
+const modelPick = {};
+async function pickModel(st) {
+  const base = (st.baseUrl || PROVIDERS.openai.base).replace(/\/+$/, '');
+  if (modelPick[base]) return modelPick[base];
+  const r = await xfetch(base + '/models', { headers: { authorization: 'Bearer ' + st.apiKey } }, 15000);
+  const j = await r.json();
+  let ids = ((j && j.data) || []).map(m => m.id).filter(Boolean);
+  if (/openrouter/.test(base)) ids = ids.filter(i => /:free$/.test(i));
+  ids = ids.filter(i => !/whisper|guard|tts|embed|orpheus|playai|moderation|image|audio|speech|safeguard/i.test(i));
+  const pref = [/gpt-oss-120b/, /llama-3\.3-70b/, /llama-4/, /qwen.*(235|32b|27b)/, /gpt-oss-20b/, /llama.*70b/, /gemma.*(27|12)b/, /llama.*(8b|3b)/];
+  let best = null;
+  for (const re of pref) { best = ids.find(i => re.test(i)); if (best) break; }
+  best = best || ids[0];
+  if (!best) throw new Error('brak modeli');
+  return (modelPick[base] = best);
 }
 async function callAI(st, opts) {
+  try { return await callAI1(st, opts); }
+  catch (e) {
+    if ((st.provider || '') === 'openai' && /model|not exist|not found|decommission|access/i.test(String(e && e.message))) {
+      const m = await pickModel(st);
+      if (m && m !== st.model) return callAI1(Object.assign({}, st, { model: m }), opts);
+    }
+    throw e;
+  }
+}
+async function callAI1(st, opts) {
   const prov = st.provider || 'anthropic';
   const msgs = opts.messages.map(m => ({ role: m.role, parts: typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content }));
   let r, j;
@@ -1479,7 +1507,6 @@ const A = {
     ta.value = ''; ta.style.height = ''; chatBusy = true; paintChat(); ta.focus();
     try {
       const out = await claude({ system: CHAT_SYSTEM + buildContext(), messages: chatHistory(), max: 1500, json: true });
-      if (aiNote) toast(aiNote);
       let p = parseAssistant(out);
       const ws = (p.actions || []).find(a => a && a.type === 'web_search' && a.query);
       if (ws) {

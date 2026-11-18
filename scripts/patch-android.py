@@ -105,19 +105,20 @@ def make_splash(res):
     i ustawia go także dla Androida 12+ (windowSplashScreen*)."""
     import glob
     from PIL import Image
-    paths = glob.glob(os.path.join(res, 'drawable*', 'splash.png'))
-    if not paths:
-        os.makedirs(os.path.join(res, 'drawable'), exist_ok=True)
-        paths = [os.path.join(res, 'drawable', 'splash.png')]
-    for p in paths:
-        try:
-            w, h = Image.open(p).size
-        except Exception:
-            w, h = 480, 320
-        n = int(min(w, h) * 0.34)
-        img = Image.new('RGBA', (w, h), SPLASH_BG + (255,))
-        img.alpha_composite(_sun(n), ((w - n) // 2, (h - n) // 2))
-        img.convert('RGB').save(p)
+    # stare splash.png (rozciągane na cały ekran) usuwamy; tło + słońce w proporcjach przez layer-list
+    for p in glob.glob(os.path.join(res, 'drawable*', 'splash.png')):
+        os.remove(p)
+    nodpi = os.path.join(res, 'drawable-nodpi')
+    os.makedirs(nodpi, exist_ok=True)
+    _sun(360).save(os.path.join(nodpi, 'splash_sun.png'))
+    dr = os.path.join(res, 'drawable')
+    os.makedirs(dr, exist_ok=True)
+    open(os.path.join(dr, 'splash.xml'), 'w', encoding='utf-8').write(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<layer-list xmlns:android="http://schemas.android.com/apk/res/android">\n'
+        '    <item android:drawable="@color/splash_bg" />\n'
+        '    <item>\n        <bitmap android:src="@drawable/splash_sun" android:gravity="center" />\n    </item>\n'
+        '</layer-list>\n')
     vals = os.path.join(res, 'values')
     os.makedirs(vals, exist_ok=True)
     open(os.path.join(vals, 'mojdzien_splash.xml'), 'w', encoding='utf-8').write(

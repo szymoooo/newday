@@ -691,7 +691,8 @@ function vStart() {
   const overdue = S.events.filter(e => !e.rep && e.kind === 'task' && !e.done && e.date < td);
   let rows = '', count = 0;
   overdue.forEach(e => { rows += evRow(e, true); count++; });
-  ev.forEach(e => { rows += evRow(e); count++; });
+  ev.filter(e => !e.done).forEach(e => { rows += evRow(e); count++; });
+  const doneN = ev.filter(e => e.done).length;
   pl.forEach(p => {
     count++;
     const w = plantDue(p).water <= 0;
@@ -699,8 +700,8 @@ function vStart() {
       '</div><div class="muted">Kwiaty · ' + (w ? 'podlej dziś' : 'nawieź dziś') + '</div></div><button class="btn sm ghost" data-act="' + (w ? 'plantWater' : 'plantFert') + '" data-id="' + p.id + '">' + (w ? 'Podlane' : 'Nawiezione') + '</button></div>';
   });
   if (open) rows += '<div class="prow" data-act="tab" data-v="shopping" style="cursor:pointer"><span class="ico sm c-pink">' + ic('cart') + '</span><div class="grow"><div class="t">' + open + ' ' + rz(open) + ' do kupienia</div><div class="muted">Zakupy</div></div></div>';
-  if (!rows) rows = '<div class="muted" style="padding:16px 0">Na dziś pusto - miłego dnia!</div>';
-  const sum = count ? 'Masz dziś ' + count + ' ' + rz(count) + ' w planie' : 'Na dziś nic nie zaplanowano';
+  if (!rows) rows = '<div class="muted" style="padding:16px 0">' + (doneN ? 'Wszystko na dziś zrobione - świetnie!' : 'Na dziś pusto - miłego dnia!') + '</div>';
+  const sum = count ? 'Masz dziś ' + count + ' ' + rz(count) + ' w planie' : (doneN ? 'Na dziś wszystko zrobione' : 'Na dziś nic nie zaplanowano');
   const dateStr = cap1(now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }));
   return '<div class="hero"><div class="sun">' + ic('sun', 32) + '</div><div class="d">' + esc(dateStr) + '</div><h1>Hej ' + esc(S.settings.name) + '!</h1><div class="s">' + sum + '</div></div>' +
     '<label class="search">' + ic('search', 22, 2) + '<input id="gsearch" placeholder="Szukaj wszędzie…" aria-label="Szukaj wszędzie" data-enter="gsearch"></label>' +
@@ -713,10 +714,9 @@ function vStart() {
     '';
 }
 function evRow(e, late, edit) {
-  const lead = e.kind === 'task'
-    ? '<button class="check ' + (e.done ? 'on' : '') + '" data-act="evDone" data-id="' + e.id + '" data-date="' + (e.occDate || '') + '" aria-label="Zrobione">' + (e.done ? ic('check', 18, 3) : '') + '</button>'
-    : '<span class="ico sm c-blue">' + ic('cal') + '</span>';
-  const meta = [e.time, e.kind === 'task' ? 'zadanie' : 'wydarzenie', e.rep ? '🔁 ' + repLabel(e) : ''].filter(Boolean).join(' · ');
+  const lead = '<button class="check ' + (e.done ? 'on' : '') + '" data-act="evDone" data-id="' + e.id + '" data-date="' + (e.occDate || '') + '" aria-label="Zrobione">' + (e.done ? ic('check', 18, 3) : '') + '</button>';
+  // ekran główny: tylko godzina; szczegóły powtarzania widać w kalendarzu
+  const meta = (edit ? [e.time, e.kind === 'task' ? 'zadanie' : 'wydarzenie', e.rep ? '🔁 ' + repLabel(e) : ''] : [e.time, e.kind === 'task' ? 'zadanie' : '']).filter(Boolean).join(' · ');
   return '<div class="prow">' + lead + '<div class="grow ' + (e.done ? 'done' : '') + '"' + (edit ? ' data-act="editEvent" data-id="' + e.id + '"' : '') + '><div class="t">' + esc(e.title) + '</div><div class="muted">' + esc(meta) +
     (late ? ' · <span class=warn>zaległe</span>' : '') + (e.note ? '<br>' + esc(e.note) : '') + '</div></div></div>';
 }

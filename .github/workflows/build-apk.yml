@@ -44,6 +44,10 @@ jobs:
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
           AI_PROVIDER: ${{ secrets.AI_PROVIDER }}
           AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_KEY_GROQ: ${{ secrets.AI_KEY_GROQ }}
+          AI_KEY_OPENROUTER: ${{ secrets.AI_KEY_OPENROUTER }}
+          AI_MODEL_GROQ: ${{ secrets.AI_MODEL_GROQ }}
+          AI_MODEL_OPENROUTER: ${{ secrets.AI_MODEL_OPENROUTER }}
         run: python3 scripts/patch-android.py
 
       - name: Sync web assets

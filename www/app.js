@@ -40,7 +40,7 @@ function aiCfg() {
     baseUrl: own ? st.baseUrl : (APP_CFG.baseUrl || st.baseUrl)
   };
 }
-const hasKey = () => !!(S && aiCfg().apiKey);
+const hasKey = () => !!(S && (aiCfg().apiKey || (APP_CFG.fallbacks || []).some(f => f.apiKey)));
 
 function load() {
   try {
@@ -224,9 +224,35 @@ function quotaMsg(j) {
   const t = (m.match(/retry in ([0-9hms.]+)/i) || [])[1];
   return 'Dzienny limit darmowego Gemini jest wyczerpany' + (t ? ' (odnowi się za ok. ' + t.replace(/\.$/, '').replace(/\.\d+s/, 's') + ')' : '') + '. Spróbuj później albo wpisz w Ustawieniach inny klucz lub model.';
 }
+const PROV_NAME = { anthropic: 'Claude', gemini: 'Gemini', openai: 'AI' };
+const aiDownUntil = {};   // dostawca -> do kiedy pomijamy po wyczerpaniu limitu
+let aiNote = '';
 async function claude(opts) {
   if (!hasKey()) throw new Error('NO_KEY');
-  const st = aiCfg(), prov = st.provider || 'anthropic';
+  const hasImg = opts.messages.some(m => Array.isArray(m.content) && m.content.some(p => p.type === 'image'));
+  const chain = [];
+  const p0 = aiCfg(); if (p0.apiKey) chain.push(Object.assign({ label: PROV_NAME[p0.provider] || 'AI', id: 'main', vision: true }, p0));
+  (APP_CFG.fallbacks || []).forEach((f, i) => { if (f.apiKey && !chain.some(c => c.apiKey === f.apiKey && c.model === f.model)) chain.push(Object.assign({ id: 'fb' + i }, f)); });
+  let list = chain.filter(c => !hasImg || c.vision !== false);
+  if (!list.length) throw new Error('Rozpoznanie zdjęcia wymaga Gemini lub Claude - ich limit jest wyczerpany. Spróbuj później.');
+  const live = list.filter(c => !(aiDownUntil[c.id] > Date.now()));
+  if (live.length) list = live;
+  let firstErr = null; aiNote = '';
+  for (let i = 0; i < list.length; i++) {
+    const c = list[i];
+    try {
+      const out = await callAI(c, opts);
+      if (c.id !== chain[0].id) aiNote = 'Użyto zapasowego AI: ' + c.label;
+      return out;
+    } catch (e) {
+      if (!firstErr) firstErr = e;
+      if (/limit|quota|429|rate/i.test(String(e && e.message))) aiDownUntil[c.id] = Date.now() + 10 * 60000;
+    }
+  }
+  throw firstErr;
+}
+async function callAI(st, opts) {
+  const prov = st.provider || 'anthropic';
   const msgs = opts.messages.map(m => ({ role: m.role, parts: typeof m.content === 'string' ? [{ type: 'text', text: m.content }] : m.content }));
   let r, j;
   if (prov === 'gemini') {
@@ -980,7 +1006,7 @@ function vSettings() {
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
     '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button><button class="btn ghost" data-act="backups">Kopie automatyczne</button></div></div>' +
-    '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
+    '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">' + ((APP_CFG.fallbacks || []).filter(f => f.apiKey).length ? 'Zapasowe AI (gdy skończy się limit): ' + (APP_CFG.fallbacks || []).filter(f => f.apiKey).map(f => esc(f.label)).join(', ') + '<br>' : '') + 'Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
 }
 
 /* --- Szukaj wszędzie --- */
@@ -1453,6 +1479,7 @@ const A = {
     ta.value = ''; ta.style.height = ''; chatBusy = true; paintChat(); ta.focus();
     try {
       const out = await claude({ system: CHAT_SYSTEM + buildContext(), messages: chatHistory(), max: 1500, json: true });
+      if (aiNote) toast(aiNote);
       let p = parseAssistant(out);
       const ws = (p.actions || []).find(a => a && a.type === 'web_search' && a.query);
       if (ws) {

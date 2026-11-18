@@ -256,6 +256,15 @@ public class MainActivity extends BridgeActivity {
     model = (os.environ.get('AI_MODEL') or '').strip() or default_models.get(provider, '')
     base_url = (os.environ.get('AI_BASE_URL') or '').strip()
     conf = {'apiKey': key, 'provider': provider, 'model': model, 'baseUrl': base_url}
+    fallbacks = []
+    for env, label, base, dmodel in (('GROQ', 'Groq', 'https://api.groq.com/openai/v1', 'llama-3.3-70b-versatile'),
+                                     ('OPENROUTER', 'OpenRouter', 'https://openrouter.ai/api/v1', 'meta-llama/llama-3.3-70b-instruct:free')):
+        k = (os.environ.get('AI_KEY_' + env) or '').strip()
+        if k:
+            fallbacks.append({'label': label, 'provider': 'openai', 'apiKey': k, 'baseUrl': base,
+                              'model': (os.environ.get('AI_MODEL_' + env) or '').strip() or dmodel, 'vision': False})
+    conf['fallbacks'] = fallbacks
+    print('AI fallbacks: %s' % (', '.join(f['label'] for f in fallbacks) or 'none'))
     open('www/config.js', 'w', encoding='utf-8').write('window.APP_CONFIG=%s;\n' % json.dumps(conf))
     print('AI key: %s' % ('built in (provider %s, model %s)' % (provider, model) if key else 'NOT SET (add the AI_API_KEY secret)'))
 

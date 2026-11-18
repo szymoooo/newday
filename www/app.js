@@ -219,6 +219,11 @@ const PROVIDERS = {
   gemini: { label: 'Google Gemini - ma darmowy limit dzienny', model: 'gemini-2.5-flash', base: '' },
   openai: { label: 'Inne (Groq, OpenRouter, OpenAI…)', model: 'llama-3.3-70b-versatile', base: 'https://api.groq.com/openai/v1' }
 };
+function quotaMsg(j) {
+  const m = (j && j.error && j.error.message) || '';
+  const t = (m.match(/retry in ([0-9hms.]+)/i) || [])[1];
+  return 'Dzienny limit darmowego Gemini jest wyczerpany' + (t ? ' (odnowi się za ok. ' + t.replace(/\.$/, '').replace(/\.\d+s/, 's') + ')' : '') + '. Spróbuj później albo wpisz w Ustawieniach inny klucz lub model.';
+}
 async function claude(opts) {
   if (!hasKey()) throw new Error('NO_KEY');
   const st = aiCfg(), prov = st.provider || 'anthropic';
@@ -234,11 +239,13 @@ async function claude(opts) {
     };
     if (opts.json) body.generationConfig.responseMimeType = 'application/json';
     if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
-    r = await xfetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(st.model) + ':generateContent', {
+    const callG = m => xfetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m) + ':generateContent', {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': st.apiKey }, body: JSON.stringify(body)
     });
+    r = await callG(st.model);
+    if (r.status === 429 && !/lite/.test(st.model)) { const r2 = await callG('gemini-2.5-flash-lite'); if (r2.ok) r = r2; }
     j = await r.json();
-    if (!r.ok) throw new Error((j.error && j.error.message) || ('HTTP ' + r.status));
+    if (!r.ok) throw new Error(r.status === 429 ? quotaMsg(j) : ((j.error && j.error.message) || ('HTTP ' + r.status)));
     const c = j.candidates && j.candidates[0];
     const text = ((c && c.content && c.content.parts) || []).map(p => p.text || '').join('');
     if (!text) throw new Error('Pusta odpowiedź modelu');
@@ -623,7 +630,7 @@ function vStart() {
     '<div class="card flush">' + rows + '</div>' +
     '<h2>Szybkie akcje</h2><div class="grid">' +
     tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>' +
-    '<div class="muted" style="text-align:center;margin-top:26px">Mój Dzień · wersja ' + esc(APP_VERSION) + '</div>';
+    '';
 }
 function evRow(e, late, edit) {
   const lead = e.kind === 'task'
@@ -1264,7 +1271,7 @@ function openPlantEditor(p) {
     <input type="hidden" id="pId" value="${p.id || ''}">
     <label>Nazwa</label><input id="pName" value="${esc(p.name || '')}">
     <div class="cols2"><div><label>Podlewanie co (dni)</label><input id="pWater" inputmode="numeric" value="${p.waterDays || 7}"></div>
-    <div><label>Nawożenie co (dni, 0 = brak)</label><input id="pFert" inputmode="numeric" value="${p.fertDays == null ? 30 : p.fertDays}"></div></div>
+    <div><label>Nawożenie co (dni)</label><input id="pFert" inputmode="numeric" placeholder="0 = brak" value="${p.fertDays == null ? 30 : p.fertDays}"></div></div>
     <label>Notatka</label><textarea id="pNote" style="min-height:70px">${esc(p.note || '')}</textarea>
     <div class="btns"><button class="btn" data-act="savePlant" style="flex:1">Zapisz</button>${p.id ? `<button class="btn red" data-act="delPlant" data-id="${p.id}">Usuń</button>` : ''}<button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
 }

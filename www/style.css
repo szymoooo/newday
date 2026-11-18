@@ -145,9 +145,7 @@ body:not(.v-start) main{padding-bottom:110px}
 body:not(.v-start) #fab{bottom:calc(24px + env(safe-area-inset-bottom))}
 body:not(.v-start) .toast{bottom:calc(100px + env(safe-area-inset-bottom))}
 /* na Start: menu i przycisk + w jednym rzędzie, żeby nic się nie nakładało */
-body.v-start nav{right:92px;max-width:none;margin:0}
-body.v-start #fab{bottom:calc(21px + env(safe-area-inset-bottom))}
-body.v-start main{padding-bottom:120px}
+body.v-start main{padding-bottom:190px}
 nav button{position:relative}
 .badge{position:absolute;top:2px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:var(--acc);color:#fff;font:800 11px/18px 'Nunito',system-ui,sans-serif;font-style:normal;text-align:center}
 .btn.sm{gap:6px}

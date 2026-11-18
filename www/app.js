@@ -358,13 +358,13 @@ function imgBlock(dataUrl) { return { type: 'image', dataUrl }; }
 
 const ANALYZE_SYSTEM = `Jesteś modułem rozpoznawania treści w polskiej aplikacji do codziennego życia. Dostajesz tekst, zawartość strony i/lub zdjęcie. Odpowiadasz WYŁĄCZNIE poprawnym JSON-em (bez komentarzy) w formacie:
 {"type":"recipe|link|note|plant|event|shopping",
- "recipe":{"title":"","servings":null,"total_min":null,"cook_min":null,"temp_c":null,"yield_text":"","notes":"","groups":[{"name":"","items":["500 g mąki"]}],"steps":["krok 1"],"image_query":"krótka fraza do wyszukania zdjęcia gotowej potrawy"},
+ "recipe":{"title":"","servings":null,"total_min":null,"cook_min":null,"temp_c":null,"yield_text":"","notes":"","groups":[{"name":"","items":["500 g mąki"]}],"steps":["krok 1"],"image_query":"krótka fraza do wyszukania zdjęcia gotowej potrawy","categories":["obiady"]},
  "link":{"title":"","tags":["tag"]},
  "note":{"text":""},
  "plant":{"name":"","water_days":7,"fertilize_days":30,"tip":""},
  "event":{"title":"","date":"YYYY-MM-DD","time":"HH:MM"},
  "shopping":["produkt"]}
-Wypełnij tylko pole pasujące do "type". Przepis: zachowaj oryginalne ilości i treść, rozdziel składniki na podgrupy (np. "Kruszonka", "Nadzienie") gdy tekst je wyróżnia, nazwa grupy pusta dla głównych składników. Kroki wykonania jako osobne krótkie pozycje. Czas i temperaturę podaj tylko jeśli wynikają z tekstu. Składniki zapisuj jako \"ilość jednostka nazwa\" (np. \"1 kg buraków\"), nawet gdy źródło ma format \"Nazwa - ilość\". Jeśli podano wydajność niepoliczalną jako porcje (np. \"około 1500 ml barszczu\"), wpisz ją do yield_text, a servings zostaw null. Uwagi autora, wskazówki i przeliczniki (np. pojemność szklanki) wpisz do notes. Wszystko po polsku.`;
+Wypełnij tylko pole pasujące do "type". Przepis: zachowaj oryginalne ilości i treść, rozdziel składniki na podgrupy (np. "Kruszonka", "Nadzienie") gdy tekst je wyróżnia, nazwa grupy pusta dla głównych składników. Kroki wykonania jako osobne krótkie pozycje. Czas i temperaturę podaj tylko jeśli wynikają z tekstu. Składniki zapisuj jako \"ilość jednostka nazwa\" (np. \"1 kg buraków\"), nawet gdy źródło ma format \"Nazwa - ilość\". Jeśli podano wydajność niepoliczalną jako porcje (np. \"około 1500 ml barszczu\"), wpisz ją do yield_text, a servings zostaw null. Uwagi autora, wskazówki i przeliczniki (np. pojemność szklanki) wpisz do notes. KATEGORIE przepisu (pole categories, 1-3 pozycje z listy): sniadania, obiady, kolacje, zupy, miesa, ryby, makarony, salatki, przekaski, ciasta, desery, pieczywo, napoje, wege, swieta, przetwory, grill. Kategorii \"bezglutenu\" użyj WYŁĄCZNIE gdy źródło wprost deklaruje, że przepis jest bez glutenu - nigdy jej nie zgaduj. Wszystko po polsku.`;
 
 async function aiAnalyze(text, img) {
   const content = [];
@@ -495,7 +495,8 @@ function aiToRecipe(a) {
     id: uid(), title: a.title || 'Nowy przepis', servings: a.servings || null, total: a.total_min || null,
     cook: a.cook_min || null, temp: a.temp_c || null, groups, steps: a.steps || [],
     yieldText: a.yield_text || '', notes: a.notes || '',
-    image: '', imgs: [], imageQuery: a.image_query || '', source: '', fav: false, ts: Date.now()
+    image: '', imgs: [], imageQuery: a.image_query || '', source: '', fav: false, ts: Date.now(),
+    cats: validRcats(a.categories).filter(k => k !== 'bezglutenu' || GLUTEN_RX.test(JSON.stringify(a)))
   };
 }
 
@@ -676,6 +677,24 @@ Object.assign(ICONS, {
   k_praca: "<rect x=\"2\" y=\"7\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\"/>",
   k_zdrowie: "<path d=\"M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z\"/><path d=\"M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27\"/>",
   k_leki: "<path d=\"m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z\"/><path d=\"m8.5 8.5 7 7\"/>",
+  r_sniadania: "<path d=\"M3 12c0-4 3-8 8-8 4 0 8 3 9 7s-2 9-8 9-9-4-9-8z\"/><circle cx=\"11\" cy=\"12\" r=\"3\"/>",
+  r_zupy: "<path d=\"M3 12a9 9 0 0 0 18 0Z\"/><path d=\"M8 3c-1 1.5 1 2.5 0 4M12 3c-1 1.5 1 2.5 0 4M16 3c-1 1.5 1 2.5 0 4\"/>",
+  r_obiady: "<path d=\"M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2\"/><path d=\"M7 2v20\"/><path d=\"M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7\"/>",
+  r_kolacje: "<path d=\"M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z\"/>",
+  r_miesa: "<path d=\"M15.4 15.63a7.875 6 135 1 1 6.23-6.23 4.5 3.43 135 0 0-6.23 6.23\"/><path d=\"m8.29 12.71-2.6 2.6a2.5 2.5 0 1 0-1.65 4.65A2.5 2.5 0 1 0 8.7 18.3l2.59-2.59\"/>",
+  r_ryby: "<path d=\"M3 12c3-5 9-6 14-2l4-3v10l-4-3c-5 4-11 3-14-2z\"/><circle cx=\"7.5\" cy=\"11\" r=\".7\"/>",
+  r_makarony: "<path d=\"M8 3v8a3 3 0 0 0 6 0V3\"/><path d=\"M11 3v8M11 14v7\"/><path d=\"M17 8c2 0 3 2 3 4s-1 4-3 4\"/>",
+  r_salatki: "<path d=\"M3 11h18a9 7 0 0 1-18 0z\"/><path d=\"M8 11c0-4 2-6 5-7 0 4-1 6-5 7z\"/>",
+  r_przekaski: "<path d=\"M4 11h16a8 6 0 0 0-16 0z\"/><path d=\"M3 15h18\"/><path d=\"M4 19h16a1 1 0 0 0 1-1v-1H3v1a1 1 0 0 0 1 1z\"/>",
+  r_ciasta: "<path d=\"M4 20h16v-6H4z\"/><path d=\"M4 14c0-3 4-4 8-4s8 1 8 4\"/><path d=\"M12 10V7\"/><path d=\"M12 7c-1-1-1-2 0-3 1 1 1 2 0 3z\"/>",
+  r_desery: "<path d=\"M6 12h12l-1.5 8.5a1 1 0 0 1-1 .5h-7a1 1 0 0 1-1-.5z\"/><path d=\"M10 13v6M14 13v6\"/><path d=\"M5.5 12a3.5 3.5 0 0 1 2-6.2A4.5 4.5 0 0 1 16.5 5.8a3.5 3.5 0 0 1 2 6.2\"/><circle cx=\"12\" cy=\"3.5\" r=\"1\"/>",
+  r_pieczywo: "<path d=\"M12 22V9\"/><path d=\"M12 9c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 9c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 14c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 14c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 19c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 19c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 5V2\"/>",
+  r_napoje: "<path d=\"M6 8h12l-1.5 13h-9z\"/><path d=\"M12 8V3l4-1\"/>",
+  r_wege: "<path d=\"M5 21c0-10 5-16 16-17 0 11-6 16-16 17z\"/><path d=\"M5 21 14 12\"/>",
+  r_swieta: "<polygon points=\"12 2 15 9 22 9.5 17 14.5 18.5 22 12 18 5.5 22 7 14.5 2 9.5 9 9\"/>",
+  r_przetwory: "<path d=\"M7 8h10v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z\"/><path d=\"M8 3h8v5H8z\"/>",
+  r_grill: "<path d=\"M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-4-1-7-4-9 0 5-4 7-4 12 0 4 3 8 7 8z\"/>",
+  r_bezglutenu: "<path d=\"M12 22V9\"/><path d=\"M12 9c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 9c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 14c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 14c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 19c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 19c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M3 3l18 18\"/>",
   k_karmienie: "<path d=\"M3 12h18l-1.6 6.4a2 2 0 0 1-1.94 1.6H6.54a2 2 0 0 1-1.94-1.6z\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.3\"/><circle cx=\"12\" cy=\"6.5\" r=\"1.3\"/><circle cx=\"15.5\" cy=\"8.5\" r=\"1.3\"/>",
   k_zwierzeta: "<circle cx=\"11\" cy=\"4\" r=\"2\"/><circle cx=\"18\" cy=\"8\" r=\"2\"/><circle cx=\"20\" cy=\"16\" r=\"2\"/><path d=\"M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z\"/>",
   k_dom: "<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>",
@@ -723,6 +742,41 @@ function guessCat(title) {
 const catOf = e => (e && CATS.some(c => c[0] === e.cat) ? e.cat : guessCat(e && e.title));
 const validCat = c => (CATS.some(x => x[0] === c) ? c : '');
 const catName = k => (CATS.find(c => c[0] === k) || ['', 'Inne'])[1];
+/* ---------- kategorie przepisów ---------- */
+const RCATS = [['sniadania', 'Śniadania'], ['obiady', 'Obiady'], ['kolacje', 'Kolacje'], ['zupy', 'Zupy'], ['miesa', 'Mięsa'], ['ryby', 'Ryby'], ['makarony', 'Makarony'], ['salatki', 'Sałatki'], ['przekaski', 'Przekąski'], ['ciasta', 'Ciasta'], ['desery', 'Desery'], ['pieczywo', 'Pieczywo'], ['napoje', 'Napoje'], ['wege', 'Wegetariańskie'], ['swieta', 'Święta'], ['przetwory', 'Sosy i przetwory'], ['grill', 'Grill'], ['bezglutenu', 'Bez glutenu']];
+const RCAT_RULES = [
+  ['sniadania', 'śniadani|owsiank|jajecznic|omlet|nalesnik|naleśnik|granola|jajka na|kanapk|tost|szakszuk|placusz|racuch|gofry|pancake|müsli|musli', ''],
+  ['kolacje', 'kolacj', ''],
+  ['zupy', 'zup|rosół|rosol|barszcz|krem z|krupnik|żurek|zurek|chłodnik|chlodnik|bulion|gulasz|flaki|ogórkow|pomidorow|grochów|fasolow', ''],
+  ['miesa', 'kurczak|schab|kotlet|wieprzow|wołow|wolow|indyk|karkówk|karkowk|mielon|żeberk|zeberk|pieczeń|pieczen|polędwic|poledwic|udko|udka|pierś z|piers z|bitki|rolad|kaczk|golonk|boczek|stek|pulpet|gołąbk|golabk|schabow', ''],
+  ['ryby', 'ryb|łosoś|losos|dorsz|pstrąg|pstrag|śledź|sledz|tuńczyk|tunczyk|krewetk|owoce morza|karp|sandacz|halibut|mintaj', ''],
+  ['makarony', 'makaron|spaghetti|lasagne|lazanie|penne|tagliatelle|pierogi|kluski|kopytka|gnocchi|ravioli|carbonara|bolognese|ryż|ryz|risotto|knedl|łazank|lazank|naleśniki z', ''],
+  ['salatki', 'sałatk|salatk|surówk|surowk|bowl|coleslaw|sałata|salata', ''],
+  ['przekaski', 'burger|tortilla|wrap|pizza|zapiekank|hot dog|nachos|frytki|kanapk|przekąsk|przekask|przystawk|tapas|bruschett|quesadill|falafel|kebab|focaccia|nuggets|paluszki|guacamole|hummus|pasta do', ''],
+  ['ciasta', 'ciast|sernik|babk|szarlotk|murzynek|brownie|tort|makowiec|piernik|drożdżów|drozdzow|muffin|babeczk|ciastk|focaccia słodk|kruche|pączk|paczk|faworki|keks|biszkopt|beza|pavlova|rogal|struc', 'tarta'],
+  ['desery', 'deser|budyń|budyn|krem |mus |lody|panna cotta|tiramisu|galaretk|kisiel|parfait|semifreddo|czekolad|ryż na mleku|jogurtow', ''],
+  ['pieczywo', 'chleb|bułk|bulk|bagiet|chałk|chalk|rogalik|zakwas|ciabatta|pita|precel|grzank', ''],
+  ['napoje', 'napój|napoj|koktajl|smoothie|kompot|lemoniad|herbat|kawa|latte|sok |shake|drink|nalewk|grzaniec|kakao|mojito|woda smakow', ''],
+  ['wege', 'wegetari|wegań|wegan|vegan|bezmięs|bezmies|na bazie roślin', ''],
+  ['swieta', 'świąt|swiat|wigili|wielkanoc|bożonarodz|bozonarodz|sylwest|barszcz czerwony z uszk|uszka|pierniki|sernik wiedeński|karp po|śledzie|babka wielkanoc|mazurek|makowiec|piernik', ''],
+  ['przetwory', 'sos|dżem|dzem|przetwor|konfitur|marynat|ogórki kiszone|kiszon|ketchup|pesto|dressing|powidła|powidla|chutney|salsa|syrop|zaprawy|majonez|musztard|vinaigrette', ''],
+  ['grill', 'grill|grillow|szaszłyk|szaszlyk|kiełbask|kielbask|żeberka z grilla|barbecue|bbq', ''],
+]
+const rcatName = k => (RCATS.find(c => c[0] === k) || [k, k])[1];
+const validRcats = a => [...new Set((Array.isArray(a) ? a : []).map(x => String(x || '').toLowerCase().replace(/[^a-z]/g, '')).filter(k => RCATS.some(c => c[0] === k)))];
+const GLUTEN_RX = /bez\s+glutenu|bezglutenow|gluten[\s-]*free|gluten free/i;
+function guessRcats(r) {
+  const t = String(r.title || '').toLowerCase(), out = [];
+  for (const [k, pre] of RCAT_RULES) {
+    if (pre && new RegExp('(?<![\\p{L}])(?:' + pre + ')', 'u').test(t)) out.push(k);
+    if (out.length >= 2) break;
+  }
+  if (GLUTEN_RX.test(String(r.title || '') + ' ' + String(r.notes || ''))) out.push('bezglutenu');
+  return out;
+}
+const rcatsOf = r => (Array.isArray(r.cats) ? validRcats(r.cats) : guessRcats(r));
+const rcatTag = k => { const c = RCATS.find(x => x[0] === k); return c ? '<span class="rtag rc-' + k + '">' + ic('r_' + k, 13, 2.2) + esc(c[1]) + '</span>' : ''; };
+
 function ic(n, size, sw, fill) {
   return '<svg class="i" width="' + (size || 26) + '" height="' + (size || 26) + '" viewBox="0 0 24 24" fill="' + (fill || 'none') +
     '" stroke="currentColor" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
@@ -812,26 +866,36 @@ function metaChips(r, f) {
   if (t) c.push(['yellow', t]);
   return c.map(x => '<span class="chip ' + x[0] + '">' + esc(x[1]) + '</span>').join('');
 }
+let rcatSel = '';
 function listRecipes(q, onlyFav) {
   let res = searchRecipes(q);
   if (onlyFav) res = res.filter(x => x.r.fav);
+  if (rcatSel) res = res.filter(x => rcatsOf(x.r).includes(rcatSel));
   if (!res.length) return '<div class="muted card">' + (S.recipes.length ? 'Nic nie pasuje.' : 'Brak przepisów. Wklej tekst, link lub zdjęcie przepisu przyciskiem + - AI zrobi z tego kartę.') + '</div>';
   return res.map(x => {
     const r = x.r, n = r.groups.reduce((a, g) => a + g.items.length, 0);
+    const tags = rcatsOf(r).map(rcatTag).join('');
     const have = x.of ? '<span class="chip green">masz ' + x.hit + '/' + x.of + '</span>' : '';
     if (r.image) {
       return '<div class="lcard" data-act="openRecipe" data-id="' + r.id + '"><div class="limg" style="height:170px"><img src="' + esc(r.image) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'ph\');this.remove()"></div>' +
-        '<div class="lbody"><div class="row"><h3 class="grow">' + esc(r.title) + '</h3>' + (r.fav ? star(true, 22) : '') + '</div><div style="margin-top:8px">' + metaChips(r, 1) + have + '</div></div></div>';
+        '<div class="lbody"><div class="row"><h3 class="grow">' + esc(r.title) + '</h3>' + (r.fav ? star(true, 22) : '') + '</div><div style="margin-top:8px">' + metaChips(r, 1) + have + '</div>' + (tags ? '<div class="rtags">' + tags + '</div>' : '') + '</div></div>';
     }
     return '<div class="card tap rcard" data-act="openRecipe" data-id="' + r.id + '"><span class="thumb sm ph">' + ic('cook', 30, 1.6) + '</span><div class="grow"><h3>' + (r.fav ? '<span style="color:#F2B21B">★</span> ' : '') + esc(r.title) +
-      '</h3><div class="muted" style="margin-top:4px">' + (r.servings ? r.servings + ' porcji · ' : '') + n + ' składników</div>' + have + '</div></div>';
+      '</h3><div class="muted" style="margin-top:4px">' + (r.servings ? r.servings + ' porcji · ' : '') + n + ' składników</div>' + (tags ? '<div class="rtags">' + tags + '</div>' : '') + have + '</div></div>';
   }).join('');
 }
 let favOnly = false;
 function vRecipes() {
   return hdr('Przepisy', false, '<button class="ibtn round" data-act="toggleFav" aria-label="Ulubione">' + star(favOnly, 24) + '</button>') +
     '<label class="search">' + ic('search', 22, 2) + '<input id="rq" placeholder="Szukaj lub: co z jajek i mleka?" aria-label="Szukaj przepisu" data-live="recipes"></label>' +
-    '<div id="list" style="margin-top:10px">' + listRecipes('', favOnly) + '</div>';
+    rcatBar() + '<div id="list" style="margin-top:10px">' + listRecipes('', favOnly) + '</div>';
+}
+function rcatBar() {
+  const used = new Set(); S.recipes.forEach(r => rcatsOf(r).forEach(k => used.add(k)));
+  if (rcatSel && !used.has(rcatSel)) rcatSel = '';
+  if (!used.size) return '';
+  return '<div class="rbar"><button class="rf' + (rcatSel ? '' : ' sel') + '" data-act="rcatFilter" data-c="">Wszystkie</button>' +
+    RCATS.filter(c => used.has(c[0])).map(c => '<button class="rf rc-' + c[0] + (rcatSel === c[0] ? ' sel' : '') + '" data-act="rcatFilter" data-c="' + c[0] + '"><span class="ri">' + ic('r_' + c[0], 17, 2.1) + '</span>' + c[1] + '</button>').join('') + '</div>';
 }
 function vRecipe(id) {
   const r = S.recipes.find(x => x.id === id);
@@ -843,7 +907,7 @@ function vRecipe(id) {
   const groups = r.groups.map(g => (g.name ? '<div style="margin-top:14px"><span class="chip yellow">' + esc(g.name) + '</span></div>' : '') +
     '<div class="card flush" style="margin-top:8px"><ul class="ing">' + g.items.map(i => '<li>' + esc(itemText(i, scale)) + '</li>').join('') + '</ul></div>').join('');
   const steps = r.steps.map((t, i) => '<div class="step"><div class="n">' + (i + 1) + '</div><div>' + esc(scaleText(t, scale)) + '</div></div>').join('');
-  return hero + '<div class="rbody"><h1>' + esc(r.title) + '</h1><div style="margin-top:12px">' + metaChips(r, scale) + '</div>' +
+  return hero + '<div class="rbody"><h1>' + esc(r.title) + '</h1>' + (rcatsOf(r).length ? '<div class="rtags" style="margin-top:10px">' + rcatsOf(r).map(rcatTag).join('') + '</div>' : '') + '<div style="margin-top:12px">' + metaChips(r, scale) + '</div>' +
     (r.source ? '<div class="muted" style="margin-top:6px">Źródło: ' + esc(domainOf(r.source) || r.source) + '</div>' : '') +
     '<button class="btn block" style="margin-top:18px" data-act="toShop" data-id="' + r.id + '">' + ic('cart', 24, 2) + 'Dodaj składniki do zakupów</button>' +
     '<div class="row" style="margin-top:24px"><h2 class="grow" style="margin:0">Składniki</h2><div class="seg">' + seg + '</div></div>' + groups +
@@ -1356,6 +1420,7 @@ function textToGroups(t) {
 function openRecipeEditor(r, isNew) {
   draft = JSON.parse(JSON.stringify(r)); draft._new = !!isNew;
   if (!draft.imgs) draft.imgs = [];
+  if (!Array.isArray(draft.cats)) draft.cats = guessRcats(draft);
   sheet(`<h1 style="font-size:22px">${isNew ? 'Sprawdź przepis' : 'Edytuj przepis'}</h1>
     ${isNew ? '<p class="muted">AI/parser rozpoznał przepis. Popraw, jeśli coś się nie zgadza, i zapisz.</p>' : ''}
     <div id="rimg" class="rimg"></div>
@@ -1366,6 +1431,7 @@ function openRecipeEditor(r, isNew) {
     <div><label>Pieczenie min</label><input id="rCook" inputmode="numeric" value="${draft.cook || ''}"></div></div>
     <label>Czas łączny (min)</label><input id="rTotal" inputmode="numeric" value="${draft.total || ''}">
     <label>Wydajność (np. około 1500 ml barszczu)</label><input id="rYield" value="${esc(draft.yieldText || '')}">
+    <label>Kategorie <span class="muted">(dotknij, żeby dodać lub odznaczyć)</span></label><div class="rpick" id="rPick">${rpickHtml()}</div>
     <label>Składniki (podgrupy zaczynaj od „# Nazwa”)</label><textarea id="rIng" style="min-height:170px">${esc(ingToText(draft.groups))}</textarea>
     <label>Notatki</label><textarea id="rNotes" style="min-height:90px">${esc(draft.notes || '')}</textarea>
     <label>Wykonanie (jeden krok w linii)</label><textarea id="rSteps" style="min-height:170px">${esc(draft.steps.join('\n'))}</textarea>
@@ -1373,6 +1439,10 @@ function openRecipeEditor(r, isNew) {
   paintRecipeImg();
   saveDraftSoon();
   if (!draft.image) loadDraftImages();
+}
+function rpickHtml() {
+  const on = (draft && draft.cats) || [];
+  return RCATS.map(c => '<button type="button" class="rf rc-' + c[0] + (on.includes(c[0]) ? ' sel' : '') + '" data-act="rcatToggle" data-c="' + c[0] + '"><span class="ri">' + ic('r_' + c[0], 17, 2.1) + '</span>' + c[1] + '</button>').join('');
 }
 function paintRecipeImg() {
   const b = $('#rimg'); if (!b) return;
@@ -1559,6 +1629,13 @@ const A = {
 
   /* przepisy */
   toggleFav: () => { favOnly = !favOnly; render(); },
+  rcatFilter: (d) => { rcatSel = d.c || ''; render(); },
+  rcatToggle: (d) => {
+    if (!draft) return;
+    const a = draft.cats || (draft.cats = []), i = a.indexOf(d.c);
+    if (i >= 0) a.splice(i, 1); else a.push(d.c);
+    $('#rPick').innerHTML = rpickHtml(); saveDraftSoon();
+  },
   openRecipe: (d) => { scale = 1; go('recipe', d.id); },
   setScale: (d) => { scale = parseFloat(d.k); render(); },
   favRecipe: (d) => { const r = byId(S.recipes, d.id); r.fav = !r.fav; save(); render(); },

@@ -201,3 +201,35 @@ nav button.on{background:var(--acc2);color:var(--accd);font-weight:800}
 .catpick{width:100%;aspect-ratio:1;border-radius:50%;border:2.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:0;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
 .catpick.auto{background:#fff;color:var(--mut,#8a7b70);box-shadow:var(--sh)}
 .catpick.sel{border-color:#2B2320}
+
+/* kategorie przepisów */
+.rc-sniadania{--rb:#FFF1C9;--rf:#B7860B}
+.rc-obiady{--rb:#DDF3E4;--rf:#2E8B57}
+.rc-kolacje{--rb:#E4E0FF;--rf:#5B4BC4}
+.rc-zupy{--rb:#FFE9D2;--rf:#C8691A}
+.rc-miesa{--rb:#FFE0E3;--rf:#D4455A}
+.rc-ryby{--rb:#D9EEFF;--rf:#2784B8}
+.rc-makarony{--rb:#F7E6D8;--rf:#9A6035}
+.rc-salatki{--rb:#DFF0D2;--rf:#4C8B24}
+.rc-przekaski{--rb:#FFE3CF;--rf:#C8470F}
+.rc-ciasta{--rb:#FFDDE8;--rf:#D6457E}
+.rc-desery{--rb:#F1E3FF;--rf:#8A52C7}
+.rc-pieczywo{--rb:#EDE7DD;--rf:#7B6A55}
+.rc-napoje{--rb:#D8F3F0;--rf:#1F8F86}
+.rc-wege{--rb:#E3F6D0;--rf:#3F7F1B}
+.rc-swieta{--rb:#FFE0EC;--rf:#C73A7A}
+.rc-przetwory{--rb:#E0E8FF;--rf:#4A5FC1}
+.rc-grill{--rb:#E6E6EE;--rf:#5B5F7A}
+.rc-bezglutenu{--rb:#FFF4BF;--rf:#9A7B00}
+.rtags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rtag{display:inline-flex;align-items:center;gap:4px;background:var(--rb);color:var(--rf);border-radius:12px;padding:3px 9px 3px 7px;font-size:11.5px;font-weight:800}
+.rbar{display:flex;gap:8px;overflow-x:auto;padding:12px 2px 4px;margin:0 -2px;scrollbar-width:none}
+.rbar::-webkit-scrollbar{display:none}
+.rf{flex:none;display:inline-flex;align-items:center;gap:7px;border:2px solid transparent;border-radius:22px;background:#fff;color:#2B2320;font:inherit;font-size:13px;font-weight:800;padding:5px 13px 5px 6px;box-shadow:var(--sh);cursor:pointer}
+.rf:not([class*="rc-"]){padding-left:13px}
+.rf .ri{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--rb);color:var(--rf)}
+.rf.sel{background:#C8470F;color:#fff;border-color:#C8470F}
+.rf.sel .ri{background:rgba(255,255,255,.92)}
+.rpick{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 8px}
+.rpick .rf{box-shadow:none;border:2px solid #eadfd5}
+.rpick .rf.sel{border-color:#C8470F}

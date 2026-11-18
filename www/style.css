@@ -175,3 +175,28 @@ nav button.on{background:var(--acc2);color:var(--accd);font-weight:800}
 .remrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 4px}
 .chipcb{display:inline-flex;align-items:center;gap:6px;background:#fff;border-radius:999px;padding:9px 14px;box-shadow:var(--sh);font-weight:700;font-size:14px;margin:0;cursor:pointer}
 .chipcb input{width:auto;height:auto;min-height:0;margin:0;padding:0;box-shadow:none;accent-color:var(--acc,#C8431A)}
+
+/* kategorie wydarzeń */
+.cat-praca{background:#DCEBFF;color:#2F6DB5}
+.cat-zdrowie{background:#FFE0E3;color:#D4455A}
+.cat-leki{background:#F1E3FF;color:#8A52C7}
+.cat-zwierzeta{background:#FFE9D2;color:#C8691A}
+.cat-dom{background:#DDF3E4;color:#2E8B57}
+.cat-zakupy{background:#FFE0EC;color:#C73A7A}
+.cat-rodzina{background:#FFF1C9;color:#B7860B}
+.cat-nauka{background:#E0E8FF;color:#4A5FC1}
+.cat-sport{background:#D8F3F0;color:#1F8F86}
+.cat-spotkanie{background:#F7E6D8;color:#9A6035}
+.cat-urodziny{background:#FFDDE8;color:#D6457E}
+.cat-podroz{background:#D9EEFF;color:#2784B8}
+.cat-auto{background:#E6E6EE;color:#5B5F7A}
+.cat-finanse{background:#DFF0D2;color:#4C8B24}
+.cat-uroda{background:#FBE0F4;color:#B8399A}
+.cat-urzedy{background:#EDE7DD;color:#7B6A55}
+.cat-inne{background:#FFE3CF;color:#C8470F}
+.ecat{width:46px;height:46px;border-radius:50%;border:0;display:flex;align-items:center;justify-content:center;flex:none;padding:0;margin:0;cursor:pointer}
+.ecat.ok{background:var(--ok);color:#fff}
+.catgrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:4px 0 6px}
+.catpick{width:100%;aspect-ratio:1;border-radius:50%;border:2.5px solid transparent;display:flex;align-items:center;justify-content:center;padding:0;font:inherit;font-size:12px;font-weight:800;cursor:pointer}
+.catpick.auto{background:#fff;color:var(--mut,#8a7b70);box-shadow:var(--sh)}
+.catpick.sel{border-color:#2B2320}

@@ -672,6 +672,55 @@ const ICONS = {
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M18.7 5.3l-1.6 1.6M6.9 17.1l-1.6 1.6"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M18.4 5.6l-1.8 1.8M7.4 16.6l-1.8 1.8"/>'
 };
+Object.assign(ICONS, {
+  k_praca: "<rect x=\"2\" y=\"7\" width=\"20\" height=\"14\" rx=\"2\"/><path d=\"M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16\"/>",
+  k_zdrowie: "<path d=\"M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z\"/><path d=\"M3.22 12H9.5l.5-1 2 4.5 2-7 1.5 3.5h5.27\"/>",
+  k_leki: "<path d=\"m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z\"/><path d=\"m8.5 8.5 7 7\"/>",
+  k_zwierzeta: "<circle cx=\"11\" cy=\"4\" r=\"2\"/><circle cx=\"18\" cy=\"8\" r=\"2\"/><circle cx=\"20\" cy=\"16\" r=\"2\"/><path d=\"M9 10a5 5 0 0 1 5 5v3.5a3.5 3.5 0 0 1-6.84 1.045Q6.52 17.48 4.46 16.84A3.5 3.5 0 0 1 5.5 10Z\"/>",
+  k_dom: "<path d=\"m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><polyline points=\"9 22 9 12 15 12 15 22\"/>",
+  k_zakupy: "<circle cx=\"8\" cy=\"21\" r=\"1\"/><circle cx=\"19\" cy=\"21\" r=\"1\"/><path d=\"M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12\"/>",
+  k_rodzina: "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><path d=\"M16 3.13a4 4 0 0 1 0 7.75\"/>",
+  k_nauka: "<path d=\"M22 10v6M2 10l10-5 10 5-10 5z\"/><path d=\"M6 12v5c3 3 9 3 12 0v-5\"/>",
+  k_sport: "<path d=\"M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11\"/>",
+  k_spotkanie: "<path d=\"M17 8h1a4 4 0 1 1 0 8h-1\"/><path d=\"M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z\"/><path d=\"M6 2v2M10 2v2M14 2v2\"/>",
+  k_urodziny: "<rect x=\"3\" y=\"8\" width=\"18\" height=\"4\" rx=\"1\"/><path d=\"M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7\"/><path d=\"M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5\"/>",
+  k_podroz: "<path d=\"M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z\"/>",
+  k_auto: "<path d=\"M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2\"/><circle cx=\"7\" cy=\"17\" r=\"2\"/><path d=\"M9 17h6\"/><circle cx=\"17\" cy=\"17\" r=\"2\"/>",
+  k_finanse: "<path d=\"M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1\"/><path d=\"M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4\"/>",
+  k_uroda: "<circle cx=\"6\" cy=\"6\" r=\"3\"/><path d=\"M8.12 8.12 12 12\"/><path d=\"M20 4 8.12 15.88\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><path d=\"M14.8 14.8 20 20\"/>",
+  k_urzedy: "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6M16 13H8M16 17H8M10 9H8\"/>",
+  k_inne: "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>"
+});
+const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['zwierzeta', 'Zwierzęta'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
+const CAT_RULES = [
+  ['leki', '', 'leki|lek|leków|tabletka|tabletki|tabletek|suplement|suplementy|witaminy|witamina|krople|antybiotyk'],
+  ['zwierzeta', 'weteryn|zwierz|szczepienie psa|spacer z psem|karmienie', 'pies|psa|psem|kot|kota|kotem|chomik|rybki'],
+  ['zdrowie', 'lekarz|dentyst|szpital|badani|przychodni|ortodont|okulist|fizjoterap|rehabilit|szczepien|poradni|wizyta u|kardiolog|dermatolog|ginekolog|laryngolog', 'usg|krew|kontrola'],
+  ['urodziny', 'urodzin|imienin|prezent|święt|wigili|rocznic|ślub|wesel|chrzci|komuni|andrzejk', ''],
+  ['podroz', 'podróż|wyjazd|samolot|pociąg|urlop|wakacj|hotel|bilet|lotnisk|wycieczk', 'lot'],
+  ['auto', 'samochód|przegląd|opon|warsztat|mechanik|tankow|myjni|ubezpieczenie oc', 'auto|olej|serwis'],
+  ['finanse', 'rachunk|opłat|czynsz|podatek|przelew|faktur|kredyt|abonament', 'rata|raty|pit|bank|prąd|gaz'],
+  ['uroda', 'fryzjer|kosmetycz|manicure|paznokc|paznokci|masaż|barber|strzyżen|depilac', 'spa'],
+  ['urzedy', 'urząd|urzęd|dokument|podanie|wniosek|poczta|notariusz|dowód|paszport|sąd', 'zus'],
+  ['nauka', 'szkoł|lekcj|kurs|egzamin|nauk|uczeni|studi|zajęcia|korepet|wykład|angielsk', ''],
+  ['sport', 'trening|siłown|bieganie|basen|rower|joga|yoga|fitness|pilates|mecz|tenis|squash|dart|piłk', 'bieg'],
+  ['dom', 'sprząt|pranie|wypran|odkurz|naprawa|hydraul|remont|śmieci|ogród|garaż|okna', 'dom'],
+  ['zakupy', 'zakup|sklep|paczk|kurier|allegro', ''],
+  ['rodzina', 'dzieci|dziecko|rodzic|rodzin|przedszkol|babci|dziadk', 'mama|tata|syn|córka'],
+  ['praca', 'praca|pracy|biur|zmiana|dyżur|firma|projekt|klient|prezentacj|zebranie|szef', ''],
+  ['spotkanie', 'spotkanie|kawa|kawy|obiad z|kolacj|impreza|randk|znajom|przyjaci|piwo|wyjście', '']
+];
+function guessCat(title) {
+  const t = String(title || '').toLowerCase();
+  for (const [k, pre, ex] of CAT_RULES) {
+    if (pre && new RegExp('(?<![\\p{L}])(?:' + pre + ')', 'u').test(t)) return k;
+    if (ex && new RegExp('(?<![\\p{L}])(?:' + ex + ')(?![\\p{L}])', 'u').test(t)) return k;
+  }
+  return 'inne';
+}
+const catOf = e => (e && CATS.some(c => c[0] === e.cat) ? e.cat : guessCat(e && e.title));
+const validCat = c => (CATS.some(x => x[0] === c) ? c : '');
+const catName = k => (CATS.find(c => c[0] === k) || ['', 'Inne'])[1];
 function ic(n, size, sw, fill) {
   return '<svg class="i" width="' + (size || 26) + '" height="' + (size || 26) + '" viewBox="0 0 24 24" fill="' + (fill || 'none') +
     '" stroke="currentColor" stroke-width="' + (sw || 1.9) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[n] || '') + '</svg>';
@@ -714,7 +763,8 @@ function vStart() {
     '';
 }
 function evRow(e, late, edit) {
-  const lead = '<button class="check ' + (e.done ? 'on' : '') + '" data-act="evDone" data-id="' + e.id + '" data-date="' + (e.occDate || '') + '" aria-label="Zrobione">' + (e.done ? ic('check', 18, 3) : '') + '</button>';
+  const cat = catOf(e);
+  const lead = '<button class="ecat cat-' + cat + (e.done ? ' ok' : '') + '" data-act="evDone" data-id="' + e.id + '" data-date="' + (e.occDate || '') + '" aria-label="' + (e.done ? 'Cofnij' : 'Oznacz jako zrobione') + '">' + (e.done ? ic('check', 24, 3.2) : ic('k_' + cat, 24, 2)) + '</button>';
   // ekran główny: tylko godzina; szczegóły powtarzania widać w kalendarzu
   const meta = (edit ? [e.time, e.kind === 'task' ? 'zadanie' : 'wydarzenie', e.rep ? '🔁 ' + repLabel(e) : ''] : [e.time, e.kind === 'task' ? 'zadanie' : '']).filter(Boolean).join(' · ');
   return '<div class="prow">' + lead + '<div class="grow ' + (e.done ? 'done' : '') + '"' + (edit ? ' data-act="editEvent" data-id="' + e.id + '"' : '') + '><div class="t">' + esc(e.title) + '</div><div class="muted">' + esc(meta) +
@@ -894,12 +944,14 @@ AKCJE, które aplikacja potrafi wykonać (pole "type"):
 - {"type":"shopping_add","items":["chleb","masło"]} - dodaj produkty do listy zakupów
 - {"type":"shopping_done","items":["chleb"]} - oznacz produkty jako kupione
 - {"type":"recipe_to_shopping","title":"nazwa przepisu z listy PRZEPISY"} - dodaj składniki przepisu do zakupów
-- {"type":"event_add","title":"...","date":"YYYY-MM-DD (pierwszy dzień)","time":"HH:MM albo pusty","kind":"event albo task","note":"","repeat":null albo {"type":"daily|weekly|monthly|yearly","days":[1-7 dla weekly: 1=pon ... 7=niedz],"until":"YYYY-MM-DD albo pusty"},"remind_before":[minuty przed, np. 0,60,120,180,1440]} - dodaj wydarzenie lub zadanie (także cykliczne) do kalendarza
+- {"type":"event_add","title":"...","date":"YYYY-MM-DD (pierwszy dzień)","time":"HH:MM albo pusty","kind":"event albo task","category":"jedna z kategorii poniżej","note":"","repeat":null albo {"type":"daily|weekly|monthly|yearly","days":[1-7 dla weekly: 1=pon ... 7=niedz],"until":"YYYY-MM-DD albo pusty"},"remind_before":[minuty przed, np. 0,60,120,180,1440]} - dodaj wydarzenie lub zadanie (także cykliczne) do kalendarza
 - {"type":"event_edit","title":"tytuł istniejącego wydarzenia","title_new":"","date":"","time":"","repeat":{...},"remind_before":[...]} - zmień istniejące wydarzenie (podaj tylko zmieniane pola; repeat: null = wyłącz powtarzanie)
 - {"type":"task_done","title":"..."} - oznacz zadanie jako zrobione
 - {"type":"note_add","text":"..."} - zapisz notatkę
 - {"type":"plant_watered","name":"..."} - zapisz, że roślina została podlana
 - {"type":"web_search","query":"..."} - wyszukaj w internecie (TYLKO gdy użytkownik prosi o sprawdzenie w internecie albo pyta o aktualne fakty, ceny, godziny, wydarzenia). Wtedy w \"reply\" napisz krótko, że szukasz, i nie dawaj innych akcji. Wyniki dostaniesz w następnej wiadomości - wtedy odpowiedz na ich podstawie i podaj źródła, jeśli są.
+
+KATEGORIE wydarzeń (pole category): praca, zdrowie, leki, zwierzeta, dom, zakupy, rodzina, nauka, sport, spotkanie, urodziny, podroz, auto, finanse, uroda, urzedy, inne. Zawsze wybierz najlepiej pasującą (np. weterynarz -> zwierzeta, lekarz/dentysta -> zdrowie, tabletki -> leki, rachunek -> finanse); gdy nic nie pasuje: inne. O kategorię NIGDY nie pytaj.
 
 ZASADY:
 1. Gdy użytkownik wyraźnie prosi o dodanie lub zapisanie czegoś albo potwierdza Twoją propozycję („dodaj”, „tak”, „zapisz to”, „ok”), WYKONAJ akcję od razu: wpisz ją do "actions" i krótko potwierdź w "reply".
@@ -1013,7 +1065,7 @@ function runActions(actions) {
           const time = /^\d{1,2}:\d{2}$/.test(a.time || '') ? String(a.time).padStart(5, '0') : '';
           const date0 = /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : today();
           const rems = Array.isArray(a.remind_before) ? normRems(a.remind_before) : (time ? [0] : []);
-          const e = { id: uid(), title, date: date0, time, kind: a.kind === 'task' ? 'task' : 'event', note: String(a.note || ''), done: false, rems, remind: rems.length ? rems[0] : -1, rep: normRepeat(a.repeat, date0) };
+          const e = { id: uid(), title, date: date0, time, kind: a.kind === 'task' ? 'task' : 'event', note: String(a.note || ''), done: false, rems, remind: rems.length ? rems[0] : -1, rep: normRepeat(a.repeat, date0), cat: validCat(a.category) };
           S.events.push(e); scheduleEvent(e);
           acts.push((e.kind === 'task' ? 'Dodano zadanie: ' : 'Dodano wydarzenie: ') + e.title + ' (' + plShort(e.date) + (e.time ? ', ' + e.time : '') + (e.rep ? ', ' + repLabel(e) : '') + ')');
           break;
@@ -1022,6 +1074,7 @@ function runActions(actions) {
           const e = findFuzzy(S.events, a.title, x => x.title);
           if (!e) { acts.push('Nie znalazłem wydarzenia: ' + a.title); break; }
           if (a.title_new) e.title = String(a.title_new);
+          if (validCat(a.category)) e.cat = a.category;
           if (/^\d{4}-\d{2}-\d{2}$/.test(a.date || '')) e.date = a.date;
           if (/^\d{1,2}:\d{2}$/.test(a.time || '')) e.time = String(a.time).padStart(5, '0');
           if ('repeat' in a) e.rep = normRepeat(a.repeat, e.date);
@@ -1379,6 +1432,8 @@ function openEventEditor(e, isNew) {
     <label>Tytuł</label><input id="eTitle" value="${esc(e.title || '')}">
     <div class="cols2"><div><label>Data</label><input id="eDate" type="date" value="${esc(e.date || today())}"></div>
     <div><label>Godzina</label><input id="eTime" type="time" value="${esc(e.time || '')}"></div></div>
+    <label>Kategoria <span class="muted" id="eCatName">${e.cat ? esc(catName(e.cat)) : 'automatycznie po tytule'}</span></label><input type="hidden" id="eCat" value="${esc(e.cat || '')}">
+    <div class="catgrid"><button type="button" class="catpick auto${e.cat ? '' : ' sel'}" data-act="pickCat" data-c="">Auto</button>${CATS.map(c => `<button type="button" class="catpick cat-${c[0]}${e.cat === c[0] ? ' sel' : ''}" data-act="pickCat" data-c="${c[0]}" aria-label="${c[1]}">${ic('k_' + c[0], 22, 2)}</button>`).join('')}</div>
     <label>Rodzaj</label><select id="eKind"><option value="event" ${e.kind !== 'task' ? 'selected' : ''}>Wydarzenie</option><option value="task" ${e.kind === 'task' ? 'selected' : ''}>Zadanie</option></select>
     <label>Powtarzaj</label><select id="ePrep">${[['', 'nie powtarzaj'], ['d', 'codziennie'], ['w', 'co tydzień'], ['m', 'co miesiąc'], ['y', 'co rok']].map(o => `<option value="${o[0]}" ${(e.rep ? e.rep.t : '') === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select>
     <div id="eRepBox" style="display:${e.rep ? 'block' : 'none'}">
@@ -1566,12 +1621,17 @@ const A = {
 
   /* kalendarz */
   newEvent: () => openEventEditor(),
+  pickCat: (d) => {
+    $('#eCat').value = d.c || '';
+    document.querySelectorAll('.catpick').forEach(b => b.classList.toggle('sel', (b.dataset.c || '') === (d.c || '')));
+    $('#eCatName').textContent = d.c ? catName(d.c) : 'automatycznie po tytule';
+  },
   editEvent: (d) => openEventEditor(byId(S.events, d.id)),
   saveEvent: () => {
     const title = val('eTitle'); if (!title) { toast('Podaj tytuł'); return; }
     let e = byId(S.events, val('eId'));
     if (!e) { e = { id: uid(), done: false }; S.events.push(e); }
-    e.title = title; e.date = val('eDate') || today(); e.time = val('eTime'); e.kind = val('eKind'); e.note = val('eNote');
+    e.cat = validCat(val('eCat')); e.title = title; e.date = val('eDate') || today(); e.time = val('eTime'); e.kind = val('eKind'); e.note = val('eNote');
     e.rems = normRems([...document.querySelectorAll('.erem:checked')].map(c => c.value)); e.remind = e.rems.length ? e.rems[0] : -1;
     const rt = val('ePrep');
     e.rep = rt ? normRepeat({ t: rt, days: [...document.querySelectorAll('.eday:checked')].map(c => c.value === '0' ? 7 : +c.value), until: val('eUntil') }, e.date) : null;

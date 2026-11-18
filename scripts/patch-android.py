@@ -162,11 +162,13 @@ def main():
         """
         m = m.replace('</activity>', share + '</activity>', 1)
     perms = ''
-    for p in ('android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.RECEIVE_BOOT_COMPLETED'):
+    for p in ('android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.RECORD_AUDIO'):
         if p not in m:
             perms += '    <uses-permission android:name="%s" />\n' % p
     if perms:
         m = re.sub(r'<application', perms + '    <application', m, count=1)
+    if 'android.speech.RecognitionService' not in m:  # dyktowanie głosowe (Android 11+)
+        m = m.replace('</manifest>', '    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>\n</manifest>', 1)
     if 'windowSoftInputMode' not in m:  # klawiatura zmniejsza widok zamiast go przykrywać
         m = re.sub(r'<activity\b', '<activity android:windowSoftInputMode="adjustResize"', m, count=1)
     open(manifest_path, 'w', encoding='utf-8').write(m)

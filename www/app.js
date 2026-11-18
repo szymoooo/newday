@@ -49,9 +49,87 @@ function load() {
     return r ? Object.assign(base, r, { settings: Object.assign(base.settings, r.settings || {}) }) : base;
   } catch (e) { return JSON.parse(JSON.stringify(DEF)); }
 }
+const DRAFT_KEY = 'mojdzien.draft';
+let idbP = null;
+function idb() {
+  if (idbP) return idbP;
+  idbP = new Promise((res, rej) => {
+    try {
+      const q = indexedDB.open('mojdzien', 1);
+      q.onupgradeneeded = () => q.result.createObjectStore('kv');
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    } catch (e) { rej(e); }
+  });
+  idbP.catch(() => { idbP = null; });
+  return idbP;
+}
+function idbOp(mode, fn) {
+  return idb().then(db => new Promise((res, rej) => {
+    const tx = db.transaction('kv', mode), st = tx.objectStore('kv'); const r = fn(st);
+    tx.oncomplete = () => res(r && r.result); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error);
+  }));
+}
+const idbGet = k => idbOp('readonly', st => st.get(k));
+const idbSet = (k, v) => idbOp('readwrite', st => st.put(v, k));
+const idbDel = k => idbOp('readwrite', st => st.delete(k));
+const idbKeys = () => idbOp('readonly', st => st.getAllKeys());
+let idbTimer = null;
+function mirrorSoon() {
+  clearTimeout(idbTimer);
+  idbTimer = setTimeout(async () => {
+    try {
+      const json = JSON.stringify(S);
+      await idbSet('state', json);
+      const day = 'backup-' + ymd(new Date());
+      const keys = await idbKeys();
+      if (!keys.includes(day)) {
+        await idbSet(day, json);
+        const old = keys.filter(k => /^backup-/.test(k)).sort();
+        for (const k of old.slice(0, Math.max(0, old.length + 1 - 7))) await idbDel(k);
+      }
+    } catch (e) { /* kopia w IndexedDB jest dodatkiem */ }
+  }, 800);
+}
 function save() {
+  S.savedAt = Date.now();
+  let ok = true;
   try { localStorage.setItem(KEY, JSON.stringify(S)); }
-  catch (e) { toast('Brak miejsca w pamięci - usuń część zdjęć'); }
+  catch (e) { ok = false; toast('Brak miejsca w pamięci telefonu - zapisano kopię awaryjną'); }
+  mirrorSoon();
+  return ok;
+}
+function hasData(o) { return !!o && ['links', 'recipes', 'shopping', 'plants', 'events', 'notes', 'chat'].some(k => (o[k] || []).length); }
+/* po starcie: jeśli localStorage jest pusty/starszy niż kopia w IndexedDB (np. system go wyczyścił), odzyskaj dane */
+async function recoverFromIdb() {
+  try {
+    const json = await idbGet('state'); if (!json) return;
+    const o = JSON.parse(json);
+    if (!hasData(o)) return;
+    if (!hasData(S) || (o.savedAt || 0) > (S.savedAt || 0) + 1000) {
+      S = Object.assign(JSON.parse(JSON.stringify(DEF)), o, { settings: Object.assign({}, DEF.settings, o.settings || {}) });
+      try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+      render(); toast('Przywrócono dane z kopii zapasowej');
+    }
+  } catch (e) {}
+}
+async function listBackups() { try { return (await idbKeys()).filter(k => /^backup-/.test(k)).sort().reverse(); } catch (e) { return []; } }
+function saveDraftSoon() {
+  if (!draft) return;
+  try {
+    readDraftFields();
+    const d = Object.assign({}, draft); delete d.imgs;
+    if (d.image && d.image.length > 1500000) delete d.image;
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+  } catch (e) {}
+}
+function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch (e) {} }
+
+function xfetch(url, opts, ms) {
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const t = setTimeout(() => ctl && ctl.abort(), ms || 60000);
+  return fetch(url, Object.assign({}, opts || {}, ctl ? { signal: ctl.signal } : {}))
+    .catch(e => { throw new Error(e && e.name === 'AbortError' ? 'Przekroczono czas oczekiwania - sprawdź internet i spróbuj ponownie' : 'Brak połączenia z internetem'); })
+    .finally(() => clearTimeout(t));
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden');
@@ -92,28 +170,45 @@ async function unnotify(key) { const p = LN(); if (p) { try { await p.cancel({ n
 function fileToDataUrl(file, max, q) {
   max = max || 900; q = q || 0.7;
   return new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onerror = rej;
-    fr.onload = () => {
-      const img = new Image();
-      img.onerror = rej;
-      img.onload = () => {
-        const k = Math.min(1, max / Math.max(img.width, img.height));
+    const timer = setTimeout(() => rej(new Error('Zdjęcie wczytuje się zbyt długo')), 25000);
+    const done = (img, url) => {
+      try {
+        const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        const k = Math.min(1, max / Math.max(w, h));
         const c = document.createElement('canvas');
-        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
         c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-        res(c.toDataURL('image/jpeg', q));
-      };
-      img.src = fr.result;
+        let out = c.toDataURL('image/jpeg', q);
+        if (out.length > 450000) out = c.toDataURL('image/jpeg', 0.55);
+        c.width = c.height = 1;
+        clearTimeout(timer); if (url) URL.revokeObjectURL(url); res(out);
+      } catch (e) { clearTimeout(timer); rej(e); }
     };
-    fr.readAsDataURL(file);
+    const viaReader = () => {
+      const fr = new FileReader();
+      fr.onerror = () => { clearTimeout(timer); rej(new Error('Nie udało się wczytać zdjęcia')); };
+      fr.onload = () => { const img = new Image(); img.onerror = () => { clearTimeout(timer); rej(new Error('Nie udało się wczytać zdjęcia')); }; img.onload = () => done(img); img.src = fr.result; };
+      fr.readAsDataURL(file);
+    };
+    try {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => done(img, url);
+      img.onerror = () => { URL.revokeObjectURL(url); viaReader(); };
+      img.src = url;
+    } catch (e) { viaReader(); }
   });
 }
 function pickImage(max) {
   return new Promise(res => {
     const inp = $('#filePick');
     inp.value = '';
-    inp.onchange = async () => { const f = inp.files[0]; res(f ? await fileToDataUrl(f, max) : null); };
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) { res(null); return; }
+      busy(true, 'Przygotowuję zdjęcie…');
+      try { res(await fileToDataUrl(f, max)); }
+      catch (e) { toast('Zdjęcie się nie udało: ' + (e.message || e)); res(null); }
+      finally { busy(false); }
+    };
     inp.click();
   });
 }
@@ -137,8 +232,9 @@ async function claude(opts) {
       })),
       generationConfig: { maxOutputTokens: Math.max(opts.max || 2000, 4000) }
     };
+    if (opts.json) body.generationConfig.responseMimeType = 'application/json';
     if (opts.system) body.systemInstruction = { parts: [{ text: opts.system }] };
-    r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(st.model) + ':generateContent', {
+    r = await xfetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(st.model) + ':generateContent', {
       method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': st.apiKey }, body: JSON.stringify(body)
     });
     j = await r.json();
@@ -159,7 +255,7 @@ async function claude(opts) {
         content: onlyText ? m.parts.map(p => p.text).join('\n') : m.parts.map(p => p.type === 'image' ? { type: 'image_url', image_url: { url: p.dataUrl } } : { type: 'text', text: p.text })
       });
     });
-    r = await fetch(base + '/chat/completions', {
+    r = await xfetch(base + '/chat/completions', {
       method: 'POST', headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + st.apiKey },
       body: JSON.stringify({ model: st.model, messages, max_tokens: opts.max || 2000 })
     });
@@ -168,7 +264,7 @@ async function claude(opts) {
     return (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || '';
   }
   // Anthropic
-  r = await fetch('https://api.anthropic.com/v1/messages', {
+  r = await xfetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -197,13 +293,13 @@ function imgBlock(dataUrl) { return { type: 'image', dataUrl }; }
 
 const ANALYZE_SYSTEM = `Jesteś modułem rozpoznawania treści w polskiej aplikacji do codziennego życia. Dostajesz tekst, zawartość strony i/lub zdjęcie. Odpowiadasz WYŁĄCZNIE poprawnym JSON-em (bez komentarzy) w formacie:
 {"type":"recipe|link|note|plant|event|shopping",
- "recipe":{"title":"","servings":null,"total_min":null,"cook_min":null,"temp_c":null,"groups":[{"name":"","items":["500 g mąki"]}],"steps":["krok 1"],"image_query":"krótka fraza do wyszukania zdjęcia gotowej potrawy"},
+ "recipe":{"title":"","servings":null,"total_min":null,"cook_min":null,"temp_c":null,"yield_text":"","notes":"","groups":[{"name":"","items":["500 g mąki"]}],"steps":["krok 1"],"image_query":"krótka fraza do wyszukania zdjęcia gotowej potrawy"},
  "link":{"title":"","tags":["tag"]},
  "note":{"text":""},
  "plant":{"name":"","water_days":7,"fertilize_days":30,"tip":""},
  "event":{"title":"","date":"YYYY-MM-DD","time":"HH:MM"},
  "shopping":["produkt"]}
-Wypełnij tylko pole pasujące do "type". Przepis: zachowaj oryginalne ilości i treść, rozdziel składniki na podgrupy (np. "Kruszonka", "Nadzienie") gdy tekst je wyróżnia, nazwa grupy pusta dla głównych składników. Kroki wykonania jako osobne krótkie pozycje. Czas i temperaturę podaj tylko jeśli wynikają z tekstu. Wszystko po polsku.`;
+Wypełnij tylko pole pasujące do "type". Przepis: zachowaj oryginalne ilości i treść, rozdziel składniki na podgrupy (np. "Kruszonka", "Nadzienie") gdy tekst je wyróżnia, nazwa grupy pusta dla głównych składników. Kroki wykonania jako osobne krótkie pozycje. Czas i temperaturę podaj tylko jeśli wynikają z tekstu. Składniki zapisuj jako \"ilość jednostka nazwa\" (np. \"1 kg buraków\"), nawet gdy źródło ma format \"Nazwa - ilość\". Jeśli podano wydajność niepoliczalną jako porcje (np. \"około 1500 ml barszczu\"), wpisz ją do yield_text, a servings zostaw null. Uwagi autora, wskazówki i przeliczniki (np. pojemność szklanki) wpisz do notes. Wszystko po polsku.`;
 
 async function aiAnalyze(text, img) {
   const content = [];
@@ -221,8 +317,15 @@ function parseQty(s) {
   if (/^\d+\/\d+$/.test(s)) { const p = s.split('/'); return p[0] / p[1]; }
   return parseFloat(s);
 }
+function normIngredient(raw) {
+  const m = raw.match(/^(\D.*?)\s+[-–—:]\s+((?:około|ok\.|ca\.?)?\s*\d[\d.,/½ ]*\s*.*)$/i);
+  if (!m) return raw;
+  const name = m[1].trim(), qty = m[2].replace(/^(około|ok\.|ca\.?)\s*/i, '').trim();
+  if (name.length > 60 || !/^\d|^½/.test(qty)) return raw;
+  return qty + ' ' + name.charAt(0).toLowerCase() + name.slice(1);
+}
 function parseIngredient(raw) {
-  raw = String(raw).trim().replace(/^[-•*]\s*/, '');
+  raw = normIngredient(String(raw).trim().replace(/^[-•*]\s*/, ''));
   const m = raw.match(new RegExp('^(\\d+(?:[.,]\\d+)?|\\d+/\\d+|½)\\s*(?:(' + UNIT_RE + ')(?=\\s|$))?\\s*(.*)$', 'i'));
   if (!m) return { q: null, u: '', n: raw, raw };
   const q = parseQty(m[1]);
@@ -251,7 +354,8 @@ function sumMinutes(str) {
 function parseRecipeText(text) {
   const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
   const isIng = l => (/^(\d+(?:[.,]\d+)?|\d+\/\d+|½)\s*[^\s.)]/.test(l)) || /^(szczypt|pół\s|troch|do smaku|kilka|opakowan)/i.test(l);
-  let title = '', mode = 'start';
+  let title = '', mode = 'start', yieldText = '', totalT = null; const notes = [];
+  const hasStepsHead = lines.some(l => /^(wykonanie|przygotowanie|sposób przygotowania|instrukcja|kroki)\s*:?$/i.test(l));
   const groups = [{ name: '', items: [] }];
   let cur = groups[0];
   const steps = [];
@@ -259,6 +363,10 @@ function parseRecipeText(text) {
   if (lines.length && !isIng(lines[0]) && lines[0].length < 80 && !/[.:]$/.test(lines[0]) && !/^(składniki|wykonanie|przygotowanie)/i.test(lines[0])) { title = lines[0]; idx = 1; }
   for (; idx < lines.length; idx++) {
     const l = lines[idx];
+    const tm = l.match(/^czas (?:przygotowania|łączny|całkowity)\s*:\s*(.+)$/i);
+    if (tm) { totalT = sumMinutes(tm[1]) || totalT; continue; }
+    const ym = l.match(/^(?:liczba porcji|porcje|ilość porcji|wydajność)\s*:\s*(.+)$/i);
+    if (ym) { yieldText = ym[1].trim(); continue; }
     if (/^(składniki|ingredients)\s*:?$/i.test(l)) { mode = 'ing'; continue; }
     if (/^(wykonanie|przygotowanie|sposób przygotowania|instrukcja|kroki|przepis)\s*:?$/i.test(l)) { mode = 'steps'; continue; }
     if (mode !== 'steps') {
@@ -269,7 +377,8 @@ function parseRecipeText(text) {
         splitInline(g[2]).forEach(x => cur.items.push(parseIngredient(x)));
         continue;
       }
-      if (isIng(l)) { cur.items.push(parseIngredient(l)); continue; }
+      if (isIng(l) || /^[^\d.]{2,60}\s+[-–—]\s+(\d|½|do smaku|szczypt|pół|troch|kilka)/i.test(l)) { cur.items.push(parseIngredient(l)); continue; }
+      if (mode === 'ing' && hasStepsHead) { notes.push(l); continue; }
       mode = 'steps';
     }
     l.split(/(?<=[.!?])\s+(?=[A-ZĄĆĘŁŃÓŚŹŻ0-9])/).forEach(s => { if (s.trim()) steps.push(s.trim()); });
@@ -281,10 +390,11 @@ function parseRecipeText(text) {
   let cook = null;
   const cm = all.match(/(?:piecz\w*|smaż\w*|gotuj\w*|duś\w*)[^.]*?(\d+)\s*(min\w*|godz\w*)/i);
   if (cm) cook = /^godz/i.test(cm[2]) ? +cm[1] * 60 : +cm[1];
-  const total = sumMinutes(all) || null;
+  const total = totalT || sumMinutes(all) || null;
   // porcje
   let servings = null;
   const sm = String(text).match(/(?:na|dla)\s+(\d+)\s*(?:porcji|porcje|osób|osoby|sztuk|szt)/i);
+  if (yieldText && !/[a-ząćęłńóśźż]{3,}/i.test(yieldText.replace(/porcj\w*|osó\w*|szt\w*/gi, ''))) servings = parseInt(yieldText) || null;
   if (sm) servings = +sm[1];
   else {
     const re = /dziel\w*[^.]*?na\s+(\d+)/gi; const nums = []; let m;
@@ -293,6 +403,7 @@ function parseRecipeText(text) {
   }
   return {
     id: uid(), title: title || 'Nowy przepis', servings, total, cook, temp: temp ? +temp : null,
+    yieldText: yieldText && !servings ? yieldText : '', notes: notes.join('\n'),
     groups: gs, steps, image: '', imgs: [], source: '', fav: false, ts: Date.now()
   };
 }
@@ -306,6 +417,7 @@ function aiToRecipe(a) {
   return {
     id: uid(), title: a.title || 'Nowy przepis', servings: a.servings || null, total: a.total_min || null,
     cook: a.cook_min || null, temp: a.temp_c || null, groups, steps: a.steps || [],
+    yieldText: a.yield_text || '', notes: a.notes || '',
     image: '', imgs: [], imageQuery: a.image_query || '', source: '', fav: false, ts: Date.now()
   };
 }
@@ -317,7 +429,7 @@ async function findImages(query) {
   try {
     const u = 'https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrlimit=8&gsrsearch=' +
       encodeURIComponent(query + ' filetype:bitmap') + '&prop=imageinfo&iiprop=url&iiurlwidth=700&format=json&origin=*';
-    const j = await (await fetch(u)).json();
+    const j = await (await xfetch(u, null, 9000)).json();
     Object.values((j.query && j.query.pages) || {}).forEach(p => {
       const ii = p.imageinfo && p.imageinfo[0];
       if (ii && /\.(jpe?g|png)$/i.test(ii.url)) add(ii.thumburl || ii.url);
@@ -326,10 +438,21 @@ async function findImages(query) {
   try {
     const u = 'https://pl.wikipedia.org/w/api.php?action=query&generator=search&gsrlimit=5&gsrsearch=' + encodeURIComponent(query) +
       '&prop=pageimages&piprop=thumbnail&pithumbsize=700&format=json&origin=*';
-    const j = await (await fetch(u)).json();
+    const j = await (await xfetch(u, null, 9000)).json();
     Object.values((j.query && j.query.pages) || {}).forEach(p => add(p.thumbnail && p.thumbnail.source));
   } catch (e) {}
+  try {
+    const u = 'https://api.openverse.org/v1/images/?page_size=8&category=photograph&q=' + encodeURIComponent(query);
+    const j = await (await xfetch(u, null, 9000)).json();
+    (j.results || []).forEach(p => add(p.thumbnail || p.url));
+  } catch (e) {}
   return out;
+}
+async function betterImageQuery(title) {
+  try {
+    const out = await claude({ system: 'Podaj jedną krótką frazę (2-4 słowa, po angielsku) do wyszukiwania zdjęcia gotowej potrawy o podanej nazwie. Odpowiedz samą frazą.', messages: [{ role: 'user', content: title }], max: 40 });
+    return String(out).replace(/["\n]/g, ' ').trim().slice(0, 60);
+  } catch (e) { return ''; }
 }
 
 /* ---------- przepisy ze stron (JSON-LD) ---------- */
@@ -365,17 +488,37 @@ function recipeFromHtml(html, url) {
       const r = findRecipeLD(JSON.parse(m[1].trim()));
       if (!r) continue;
       let img = r.image; if (Array.isArray(img)) img = img[0]; if (img && img.url) img = img.url;
-      const y = Array.isArray(r.recipeYield) ? r.recipeYield[0] : r.recipeYield;
+      let y = Array.isArray(r.recipeYield) ? r.recipeYield.find(v => /[a-ząćęłńóśźż]/i.test(String(v))) || r.recipeYield[0] : r.recipeYield;
+      y = decodeHtml(String(y == null ? '' : y)).trim();
+      const unitY = /\d\s*(ml|l|litr\w*|g|kg|dag|gram\w*)\b/i.test(y);
+      const servN = !unitY && /^\D{0,12}\d+\s*(porcj\w*|osó\w*|szt\w*|sztuk\w*)?$/i.test(y) ? parseInt(y.replace(/\D+/g, '')) : null;
+      if (!(r.recipeIngredient || []).length) continue;
       return {
-        id: uid(), title: decodeHtml(r.name || 'Przepis'), servings: parseInt(y) || null,
+        id: uid(), title: decodeHtml(r.name || 'Przepis'), servings: servN || null, yieldText: servN || !y ? '' : y, notes: decodeHtml(String(r.description || '')).trim().slice(0, 600),
         total: isoMin(r.totalTime), cook: isoMin(r.cookTime), temp: null,
-        groups: [{ name: '', items: (r.recipeIngredient || []).map(x => parseIngredient(decodeHtml(String(x)))) }],
+        groups: [{ name: '', items: (r.recipeIngredient || []).map(x => parseIngredient(decodeHtml(String(x)))) }].filter(g => g.items.length),
         steps: ldInstructions(r.recipeInstructions).map(decodeHtml),
         image: typeof img === 'string' ? img : '', imgs: [], source: url, fav: false, ts: Date.now()
       };
     } catch (e) { /* następny blok */ }
   }
   return null;
+}
+function htmlToLines(html) {
+  const t = html.replace(/<(script|style|noscript|nav|footer|header|form)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<\/(p|div|li|h[1-6]|tr|section|article|ul|ol)>|<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, ' ');
+  return decodeHtml(t).split(/\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n');
+}
+function recipeFromPageText(html, title) {
+  const lines = htmlToLines(html);
+  const i = lines.search(/^\s*(Składniki|Czas przygotowania|Liczba porcji)/im);
+  if (i < 0) return null;
+  const head = lines.slice(Math.max(0, i - 400), i).split('\n').filter(l => /^czas przygotowania|^liczba porcji/i.test(l)).join('\n');
+  let body = lines.slice(i);
+  const end = body.search(/^(Komentarze|Podobne przepisy|Zobacz także|Polecamy|Dodaj komentarz)/im);
+  if (end > 0) body = body.slice(0, end);
+  const r = parseRecipeText((title || 'Przepis') + '\n' + head + '\n' + body.slice(0, 9000));
+  return r.groups.length && r.steps.length ? r : null;
 }
 function htmlToText(html) {
   return decodeHtml(html.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
@@ -427,6 +570,8 @@ const ICONS = {
   cart: '<circle cx="9" cy="20" r="1.3"/><circle cx="18" cy="20" r="1.3"/><path d="M2.5 3.5h3l2.2 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.2"/>',
   grid: '<rect x="4" y="4" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="2"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="2"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="2"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  up: '<path d="M12 19V5M5 12l7-7 7 7"/>',
+  mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>',
   cal: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
@@ -447,7 +592,8 @@ function ic(n, size, sw, fill) {
 const star = (on, size) => '<span style="color:' + (on ? '#F2B21B' : '#B8ADA4') + '">' + ic('star', size || 24, 1.7, on ? 'currentColor' : 'none') + '</span>';
 const rz = n => n === 1 ? 'rzecz' : 'rzeczy';
 const fmtTime = m => m >= 60 ? Math.floor(m / 60) + ' h' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min';
-const hdr = (title, back, right) => '<div class="hdr">' + (back ? '<button class="ibtn round" data-act="back" aria-label="Wstecz">' + ic('back', 24, 2.2) + '</button>' : '') + '<h1>' + title + '</h1>' + (right || '') + '</div>';
+const BACK_BTN = () => '<button class="ibtn round" data-act="back" aria-label="Wstecz">' + ic('back', 24, 2.2) + '</button>';
+const hdr = (title, _back, right) => '<div class="hdr">' + BACK_BTN() + '<h1>' + title + '</h1>' + (right || '') + '</div>';
 const tile = (act, icon, color, label, v) => '<button class="tile" data-act="' + act + '"' + (v ? ' data-v="' + v + '"' : '') + '><span class="ico ' + color + '">' + ic(icon, 28) + '</span>' + label + '</button>';
 
 function vStart() {
@@ -471,10 +617,12 @@ function vStart() {
   const dateStr = cap1(now.toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'long' }));
   return '<div class="hero"><div class="sun">' + ic('sun', 32) + '</div><div class="d">' + esc(dateStr) + '</div><h1>Hej ' + esc(S.settings.name) + '!</h1><div class="s">' + sum + '</div></div>' +
     '<label class="search">' + ic('search', 22, 2) + '<input id="gsearch" placeholder="Szukaj wszędzie…" aria-label="Szukaj wszędzie" data-enter="gsearch"></label>' +
-    '<h2>Plan dnia</h2><div class="card flush">' + rows + '</div>' +
+    '<div class="row" style="margin:24px 0 10px"><h2 class="grow" style="margin:0">Plan dnia</h2>' +
+    '<button class="btn sm" data-act="newEvent">' + ic('plus', 18, 2.6) + 'Wydarzenie</button>' +
+    '<button class="ibtn round" style="width:44px;min-width:44px;min-height:44px" data-act="go" data-v="events" aria-label="Kalendarz">' + ic('cal', 22) + '</button></div>' +
+    '<div class="card flush">' + rows + '</div>' +
     '<h2>Szybkie akcje</h2><div class="grid">' +
-    tile('add', 'plus', 'c-red', 'Dodaj') + tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('newEvent', 'cal', 'c-blue', 'Wydarzenie') +
-    tile('tab', 'cart', 'c-pink', 'Zakupy', 'shopping') + tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>' +
+    tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>' +
     '<div class="muted" style="text-align:center;margin-top:26px">Mój Dzień · wersja ' + esc(APP_VERSION) + '</div>';
 }
 function evRow(e, late, edit) {
@@ -520,6 +668,7 @@ function metaChips(r, f) {
   const c = [];
   if (r.servings) c.push(['', Math.round(r.servings * f * 10) / 10 + ' porcji']);
   if (r.total) c.push(['blue', fmtTime(r.total)]);
+  if (r.yieldText) c.push(['', r.yieldText]);
   const t = [r.temp ? r.temp + '°C' : '', r.cook ? r.cook + ' min' : ''].filter(Boolean).join(' · ');
   if (t) c.push(['yellow', t]);
   return c.map(x => '<span class="chip ' + x[0] + '">' + esc(x[1]) + '</span>').join('');
@@ -560,6 +709,7 @@ function vRecipe(id) {
     '<button class="btn block" style="margin-top:18px" data-act="toShop" data-id="' + r.id + '">' + ic('cart', 24, 2) + 'Dodaj składniki do zakupów</button>' +
     '<div class="row" style="margin-top:24px"><h2 class="grow" style="margin:0">Składniki</h2><div class="seg">' + seg + '</div></div>' + groups +
     '<h2>Wykonanie</h2>' + steps +
+    (r.notes ? '<h2>Notatki</h2><div class="card" style="white-space:pre-wrap">' + esc(r.notes) + '</div>' : '') +
     '<div class="btns" style="margin-top:20px"><button class="btn ghost" data-act="editRecipe" data-id="' + r.id + '">Edytuj</button><button class="btn red" data-act="delRecipe" data-id="' + r.id + '">Usuń</button></div></div>';
 }
 
@@ -570,7 +720,7 @@ function vShopping() {
   const row = x => '<div class="prow"><button class="check ' + (x.done ? 'on' : '') + '" data-act="shopTick" data-id="' + x.id + '" aria-label="Kupione">' + (x.done ? ic('check', 18, 3) : '') + '</button>' +
     '<div class="grow ' + (x.done ? 'done' : '') + '"><div class="t">' + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + '</div>' +
     '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="shopDel" data-id="' + x.id + '" aria-label="Usuń">' + ic('x', 22, 2) + '</button></div>';
-  return '<div class="hdr"><div class="grow"><h1>Zakupy</h1><div class="muted" style="margin-top:4px">' + todo.length + ' do kupienia · ' + done.length + ' w koszyku</div></div>' +
+  return '<div class="hdr">' + BACK_BTN() + '<div class="grow"><h1>Zakupy</h1><div class="muted" style="margin-top:4px">' + todo.length + ' do kupienia · ' + done.length + ' w koszyku</div></div>' +
     (done.length ? '<button class="ibtn" data-act="shopClear">Usuń kupione</button>' : '') + '</div>' +
     '<div class="row"><label class="search grow" style="margin:0"><input id="newItem" placeholder="Dodaj produkt…" aria-label="Dodaj produkt" data-enter="shopAdd"></label>' +
     '<button class="ibtn round" style="background:var(--acc);color:#fff;width:52px;height:52px;box-shadow:0 6px 16px rgba(200,69,26,.3)" data-act="shopAdd" aria-label="Dodaj">' + ic('plus', 26, 2.4) + '</button></div>' +
@@ -581,8 +731,7 @@ function vShopping() {
 /* --- Więcej --- */
 function vMore() {
   return hdr('Więcej') + '<div class="grid">' +
-    tile('go', 'chat', 'c-purple', 'Asystent AI', 'chat') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') +
-    tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'search', 'c-red', 'Szukaj', 'search') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
+    tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') + tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
 }
 
 /* --- Kwiaty --- */
@@ -622,13 +771,181 @@ function vNotes() {
 }
 
 /* --- Asystent --- */
+let chatBusy = false;
 function mdLite(t) { return esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>'); }
-function vChat() {
-  const msgs = S.chat.map(m => '<div class="bubble ' + (m.role === 'user' ? 'me' : 'ai') + '">' + mdLite(m.text) + '</div>').join('') ||
-    '<div class="muted card">Cześć ' + esc(S.settings.name) + '! Zapytaj mnie np. „gdzie zapisałam tamten przepis na rogaliki?”, „co mam dziś w planie?” albo poproś o pomoc w codziennych sprawach.' + (hasKey() ? '' : '<br><br><span class=warn>Najpierw dodaj klucz AI w Ustawieniach.</span>') + '</div>';
-  return hdr('Asystent', true, '<button class="ibtn" data-act="chatClear">Wyczyść</button>') + msgs +
-    '<div class="chatbar"><textarea id="chatIn" placeholder="Napisz wiadomość…" data-enter="chatSend"></textarea><button class="btn" data-act="chatSend" aria-label="Wyślij">➤</button></div>';
+function chatHtml() {
+  if (!S.chat.length && !chatBusy) {
+    return '<div class="muted card">Cześć ' + esc(S.settings.name) + '! Zapytaj mnie np. „gdzie zapisałam tamten przepis na rogaliki?”, „co mam dziś w planie?” albo poproś: „dodaj chleb do zakupów”, „zapisz wizytę u lekarza jutro o 10”.' +
+      (hasKey() ? '' : '<br><br><span class=warn>Najpierw dodaj klucz AI w Ustawieniach.</span>') + '</div>';
+  }
+  return S.chat.map(m => '<div class="bubble ' + (m.role === 'user' ? 'me' : 'ai') + '">' + mdLite(m.text) + '</div>' +
+    (m.acts && m.acts.length ? '<div class="acts">' + m.acts.map(a => '<span class="chip green">' + ic('check', 14, 3) + esc(a) + '</span>').join('') + '</div>' : '')).join('') +
+    (chatBusy ? '<div class="bubble ai typing"><span></span><span></span><span></span></div>' : '');
 }
+function vChat() {
+  return hdr('Asystent', true, '<button class="ibtn" data-act="chatClear">Wyczyść</button>') +
+    '<div id="chatList">' + chatHtml() + '</div>' +
+    '<div class="chatbar"><button class="btn send ghost" id="micBtn" data-act="chatMic" aria-label="Dyktuj">' + ic('mic', 24, 2.2) + '</button><textarea id="chatIn" rows="1" placeholder="Napisz lub podyktuj…" data-enter="chatSend"></textarea>' +
+    '<button class="btn send" data-act="chatSend" aria-label="Wyślij">' + ic('up', 24, 2.4) + '</button></div>';
+}
+function paintChat() {
+  const l = $('#chatList'); if (!l) return;
+  l.innerHTML = chatHtml();
+  window.scrollTo(0, document.documentElement.scrollHeight);
+}
+
+const CHAT_SYSTEM = `Jesteś ciepłym, zwięzłym asystentem osobistym w aplikacji „Mój Dzień”. Odpowiadasz po polsku.
+Masz dostęp do danych użytkownika (na końcu). Korzystaj z nich, gdy pytanie dotyczy planów, przepisów, linków, notatek, zakupów czy roślin; gdy czegoś nie ma w danych, powiedz to wprost.
+
+FORMAT ODPOWIEDZI: wyłącznie poprawny JSON, bez żadnego tekstu poza nim:
+{"reply":"tekst dla użytkownika","actions":[ ... ]}
+
+AKCJE, które aplikacja potrafi wykonać (pole "type"):
+- {"type":"shopping_add","items":["chleb","masło"]} - dodaj produkty do listy zakupów
+- {"type":"shopping_done","items":["chleb"]} - oznacz produkty jako kupione
+- {"type":"recipe_to_shopping","title":"nazwa przepisu z listy PRZEPISY"} - dodaj składniki przepisu do zakupów
+- {"type":"event_add","title":"...","date":"YYYY-MM-DD","time":"HH:MM albo pusty","kind":"event albo task","note":""} - dodaj wydarzenie lub zadanie do kalendarza
+- {"type":"task_done","title":"..."} - oznacz zadanie jako zrobione
+- {"type":"note_add","text":"..."} - zapisz notatkę
+- {"type":"plant_watered","name":"..."} - zapisz, że roślina została podlana
+- {"type":"web_search","query":"..."} - wyszukaj w internecie (TYLKO gdy użytkownik prosi o sprawdzenie w internecie albo pyta o aktualne fakty, ceny, godziny, wydarzenia). Wtedy w \"reply\" napisz krótko, że szukasz, i nie dawaj innych akcji. Wyniki dostaniesz w następnej wiadomości - wtedy odpowiedz na ich podstawie i podaj źródła, jeśli są.
+
+ZASADY:
+1. Gdy użytkownik wyraźnie prosi o dodanie lub zapisanie czegoś albo potwierdza Twoją propozycję („dodaj”, „tak”, „zapisz to”, „ok”), WYKONAJ akcję od razu: wpisz ją do "actions" i krótko potwierdź w "reply".
+2. Gdy użytkownik tylko wspomina o potrzebie (np. „szukam chleba”), zaproponuj dodanie i zapytaj, z pustym "actions".
+3. NIGDY nie pisz, że coś dodałeś lub zapisałeś, jeśli nie ma odpowiedniej akcji w "actions". Jeśli czegoś nie potrafisz zrobić, powiedz to wprost.
+4. Nie powtarzaj akcji, które pojawiły się już w Twoich wcześniejszych odpowiedziach.
+5. Daty wyliczaj względem dzisiejszej daty z danych. Gdy nie ma nic do zrobienia: "actions":[].
+
+DANE UŻYTKOWNIKA:
+`;
+
+async function webSearch(q) {
+  const st = aiCfg(), prov = st.provider || 'anthropic';
+  try {
+    if (prov === 'gemini') {
+      const r = await xfetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(st.model) + ':generateContent', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': st.apiKey },
+        body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Wyszukaj w internecie i podaj rzetelne, zwięzłe fakty po polsku (z nazwami źródeł): ' + q }] }], tools: [{ google_search: {} }] })
+      }, 60000);
+      const j = await r.json(); if (!r.ok) throw new Error('search');
+      const t = ((j.candidates && j.candidates[0] && j.candidates[0].content.parts) || []).map(p => p.text || '').join('');
+      if (t) return t;
+    } else if (prov === 'anthropic') {
+      const r = await xfetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': st.apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+        body: JSON.stringify({ model: st.model, max_tokens: 1500, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }], messages: [{ role: 'user', content: 'Wyszukaj w internecie i podaj zwięzłe fakty po polsku (z nazwami źródeł): ' + q }] })
+      }, 60000);
+      const j = await r.json(); if (!r.ok) throw new Error('search');
+      const t = (j.content || []).map(c => c.text || '').join('');
+      if (t) return t;
+    }
+  } catch (e) { /* przejdź do wyszukiwarki ogólnej */ }
+  const r = await xfetch('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(q), { headers: { 'Accept-Language': 'pl,en;q=0.8' } }, 15000);
+  const h = await r.text(), out = [];
+  const re = /class="result__a"[^>]*>([\s\S]*?)<\/a>[\s\S]*?class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g; let m;
+  while ((m = re.exec(h)) && out.length < 6) out.push('- ' + htmlToText(m[1]) + ': ' + htmlToText(m[2]));
+  if (!out.length) throw new Error('brak wyników');
+  return out.join('\n');
+}
+let micOn = false;
+function micPlugin() { const P = window.Capacitor && window.Capacitor.Plugins; return P && P.SpeechRecognition; }
+
+function parseAssistant(out) {
+  try {
+    const j = extractJSON(out);
+    if (j && typeof j.reply === 'string') return { reply: j.reply, actions: Array.isArray(j.actions) ? j.actions : [] };
+  } catch (e) { /* zwykły tekst */ }
+  return { reply: String(out || '').trim(), actions: [] };
+}
+function chatHistory() {
+  const out = [];
+  S.chat.slice(-16).forEach(m => {
+    if (m.role !== 'user' && /^Błąd:/.test(m.text)) return;
+    const role = m.role === 'user' ? 'user' : 'assistant';
+    const text = role === 'user' ? m.text : JSON.stringify({ reply: m.text, actions: m.ax || [] });
+    if (out.length && out[out.length - 1].role === role) out[out.length - 1].content += '\n' + text;
+    else out.push({ role, content: text });
+  });
+  while (out.length && out[0].role !== 'user') out.shift();
+  return out;
+}
+
+/* --- akcje wykonywane na prośbę asystenta --- */
+const norm = t => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+function findFuzzy(list, text, get) {
+  const q = norm(text); if (!q) return null;
+  const hit = list.find(x => norm(get(x)) === q) || list.find(x => norm(get(x)).includes(q)) || list.find(x => norm(get(x)).length > 2 && q.includes(norm(get(x))));
+  if (hit) return hit;
+  const qt = tokens(q); if (!qt.length) return null;
+  let best = null, bs = 0;
+  list.forEach(x => { const sc = jaccard(qt, tokens(get(x))); if (sc > bs) { bs = sc; best = x; } });
+  return bs >= 0.4 ? best : null;
+}
+function addShopItems(items, from) {
+  const added = [];
+  items.forEach(t => {
+    t = cap1(String(t || '').trim()); if (!t) return;
+    if (S.shopping.some(x => !x.done && norm(x.text) === norm(t))) return;
+    S.shopping.push({ id: uid(), text: t, done: false, from: from || '' }); added.push(t);
+  });
+  return added;
+}
+function runActions(actions) {
+  const acts = [];
+  (Array.isArray(actions) ? actions : []).forEach(a => {
+    try {
+      switch (a && a.type) {
+        case 'shopping_add': {
+          const add = addShopItems(a.items || [], '');
+          if (add.length) acts.push('Dodano do zakupów: ' + add.join(', '));
+          else if ((a.items || []).length) acts.push('Już jest na liście zakupów');
+          break;
+        }
+        case 'shopping_done': {
+          const done = [];
+          (a.items || []).forEach(t => { const x = findFuzzy(S.shopping.filter(i => !i.done), t, i => i.text); if (x) { x.done = true; done.push(x.text); } });
+          if (done.length) acts.push('Kupione: ' + done.join(', '));
+          break;
+        }
+        case 'recipe_to_shopping': {
+          const r = findFuzzy(S.recipes, a.title, x => x.title);
+          if (r) {
+            const add = addShopItems(r.groups.flatMap(g => g.items.map(i => itemText(i, 1))), r.title);
+            acts.push(add.length ? 'Składniki „' + r.title + '” dodane do zakupów (' + add.length + ')' : 'Składniki „' + r.title + '” już są na liście');
+          } else acts.push('Nie znalazłem przepisu: ' + a.title);
+          break;
+        }
+        case 'event_add': {
+          const title = String(a.title || '').trim(); if (!title) break;
+          const time = /^\d{1,2}:\d{2}$/.test(a.time || '') ? String(a.time).padStart(5, '0') : '';
+          const e = { id: uid(), title, date: /^\d{4}-\d{2}-\d{2}$/.test(a.date || '') ? a.date : today(), time, kind: a.kind === 'task' ? 'task' : 'event', note: String(a.note || ''), done: false, remind: time ? 0 : -1 };
+          S.events.push(e); scheduleEvent(e);
+          acts.push((e.kind === 'task' ? 'Dodano zadanie: ' : 'Dodano wydarzenie: ') + e.title + ' (' + plShort(e.date) + (e.time ? ', ' + e.time : '') + ')');
+          break;
+        }
+        case 'task_done': {
+          const e = findFuzzy(S.events.filter(x => !x.done), a.title, x => x.title);
+          if (e) { e.done = true; scheduleEvent(e); acts.push('Zrobione: ' + e.title); }
+          break;
+        }
+        case 'note_add': {
+          const t = String(a.text || '').trim();
+          if (t) { S.notes.unshift({ id: uid(), text: t, img: '', pin: false, ts: Date.now() }); acts.push('Zapisano notatkę'); }
+          break;
+        }
+        case 'plant_watered': {
+          const p = findFuzzy(S.plants, a.name, x => x.name);
+          if (p) { p.lastWater = today(); schedulePlant(p); acts.push('Podlane: ' + p.name); } else acts.push('Nie znalazłem rośliny: ' + a.name);
+          break;
+        }
+      }
+    } catch (e) { /* jedna zła akcja nie psuje reszty */ }
+  });
+  if (acts.length) save();
+  return acts;
+}
+
 function buildContext() {
   const td = today();
   const c = [];
@@ -655,7 +972,7 @@ function vSettings() {
     '<div id="sBaseWrap" class="' + (prov === 'openai' ? '' : 'hidden') + '"><label>Adres API (kompatybilny z OpenAI)</label><input id="sBase" value="' + esc(st.baseUrl || PROVIDERS.openai.base) + '"></div>' +
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
-    '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button></div></div>' +
+    '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button><button class="btn ghost" data-act="backups">Kopie automatyczne</button></div></div>' +
     '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
 }
 
@@ -681,16 +998,37 @@ function vSearch(q) {
 const VIEWS = { start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe, shopping: vShopping, more: vMore, plants: vPlants, events: vEvents, notes: vNotes, chat: vChat, settings: vSettings, search: vSearch };
 
 /* =====================  ROUTER  ===================== */
+const FAB_VIEWS = ['start', 'links', 'recipes'];
 function render() {
   $('#view').innerHTML = VIEWS[route.v](route.p);
+  document.body.className = 'v-' + route.v;
   const m = { start: 'start', links: 'links', recipes: 'recipes', recipe: 'recipes', shopping: 'shopping' }[route.v] || 'more';
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.t === m));
-  $('#fab').classList.toggle('hidden', ['chat', 'settings', 'recipe', 'search'].includes(route.v));
-  if (route.v === 'chat') window.scrollTo(0, document.body.scrollHeight);
+  $('#fab').classList.toggle('hidden', !FAB_VIEWS.includes(route.v));
+  const sb = document.querySelector('#nav button[data-t=shopping]');
+  if (sb) {
+    let b = sb.querySelector('.badge');
+    if (!b) { b = document.createElement('i'); b.className = 'badge'; sb.appendChild(b); }
+    const n = S.shopping.filter(x => !x.done).length;
+    b.textContent = n > 99 ? '99+' : String(n);
+    b.style.display = n ? '' : 'none';
+  }
+  if (route.v === 'chat') window.scrollTo(0, document.documentElement.scrollHeight);
 }
-function go(v, p) { stack.push(route); route = { v, p }; render(); window.scrollTo(0, 0); }
-function back() { route = stack.pop() || { v: 'start' }; render(); }
-function tab(v) { stack = []; route = { v }; render(); window.scrollTo(0, 0); }
+function go(v, p) {
+  if (route.v === v && route.p === p) { render(); return; }
+  stack.push(route); route = { v, p }; render(); window.scrollTo(0, 0);
+}
+function back() { route = stack.pop() || { v: 'start' }; render(); window.scrollTo(0, 0); }
+function tab(v) { stack = v === 'start' ? [] : [{ v: 'start' }]; route = { v }; render(); window.scrollTo(0, 0); }
+// przycisk Wstecz w Androidzie: zamyka okno, potem wraca o ekran, na Start zamyka aplikację
+function backPress() {
+  if (!$('#sheet').classList.contains('hidden')) { draft = null; closeSheet(); return; }
+  if (!$('#busy').classList.contains('hidden')) return;
+  if (route.v !== 'start') { back(); return; }
+  const ap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+  if (ap && ap.exitApp) ap.exitApp();
+}
 
 /* =====================  DODAWANIE  ===================== */
 function openAdd(prefill) {
@@ -780,6 +1118,10 @@ async function handleUrl(url, extra) {
   const picture = async () => (meta.img ? await thumbToData(meta.img) : '');
   const rec = html && recipeFromHtml(html, url);
   if (rec) { if (!rec.image) rec.image = await picture(); openRecipeEditor(rec, true); return; }
+  if (html && !SOCIAL_RE.test(domainOf(url))) {
+    const pr = recipeFromPageText(html, meta.title);
+    if (pr && !hasKey()) { pr.source = url; pr.image = await picture(); openRecipeEditor(pr, true); return; }
+  }
   // opis filmu / posta może zawierać cały przepis
   const text = meta.desc.length >= extra.length ? meta.desc : extra;
   if (text.length > 120) {
@@ -795,7 +1137,7 @@ async function handleUrl(url, extra) {
   }
   if (hasKey() && html && !SOCIAL_RE.test(domainOf(url))) {
     try {
-      const ai = await aiAnalyze('Adres: ' + url + '\nTytuł: ' + meta.title + '\n' + htmlToText(html).slice(0, 12000));
+      const ai = await aiAnalyze('Adres: ' + url + '\nTytuł: ' + meta.title + '\n' + htmlToLines(html).slice(0, 14000));
       if (ai.type === 'recipe' && ai.recipe) { const r = aiToRecipe(ai.recipe); r.source = url; r.image = await picture(); openRecipeEditor(r, true); return; }
       addLink({ url, title: (ai.link && ai.link.title) || meta.title, tags: (ai.link && ai.link.tags) || [], note: extra, img: await picture() });
       return;
@@ -864,10 +1206,13 @@ function openRecipeEditor(r, isNew) {
     <div><label>Temp. °C</label><input id="rTemp" inputmode="numeric" value="${draft.temp || ''}"></div>
     <div><label>Pieczenie min</label><input id="rCook" inputmode="numeric" value="${draft.cook || ''}"></div></div>
     <label>Czas łączny (min)</label><input id="rTotal" inputmode="numeric" value="${draft.total || ''}">
+    <label>Wydajność (np. około 1500 ml barszczu)</label><input id="rYield" value="${esc(draft.yieldText || '')}">
     <label>Składniki (podgrupy zaczynaj od „# Nazwa”)</label><textarea id="rIng" style="min-height:170px">${esc(ingToText(draft.groups))}</textarea>
+    <label>Notatki</label><textarea id="rNotes" style="min-height:90px">${esc(draft.notes || '')}</textarea>
     <label>Wykonanie (jeden krok w linii)</label><textarea id="rSteps" style="min-height:170px">${esc(draft.steps.join('\n'))}</textarea>
     <div class="btns"><button class="btn" data-act="saveRecipe" style="flex:1">Zapisz przepis</button><button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
   paintRecipeImg();
+  saveDraftSoon();
   if (!draft.image) loadDraftImages();
 }
 function paintRecipeImg() {
@@ -876,7 +1221,8 @@ function paintRecipeImg() {
 }
 async function loadDraftImages() {
   const q = draft.imageQuery || draft.title;
-  const imgs = await findImages(q);
+  let imgs = await findImages(q);
+  if (imgs.length < 3 && hasKey() && draft) { const bq = await betterImageQuery(draft.title); if (bq) (await findImages(bq)).forEach(u => { if (!imgs.includes(u)) imgs.push(u); }); }
   if (!draft) return;
   draft.imgs = imgs; draft._i = 0;
   if (!draft.image && imgs.length) draft.image = imgs[0];
@@ -889,6 +1235,7 @@ function readDraftFields() {
   draft.temp = parseInt(val('rTemp')) || null;
   draft.cook = parseInt(val('rCook')) || null;
   draft.total = parseInt(val('rTotal')) || null;
+  draft.yieldText = val('rYield'); draft.notes = $('#rNotes').value.trim();
   draft.groups = textToGroups($('#rIng').value);
   draft.steps = $('#rSteps').value.split(/\n/).map(s => s.trim()).filter(Boolean);
 }
@@ -898,9 +1245,13 @@ function saveDraftRecipe() {
   if (dup && !confirm('Podobny przepis już istnieje: „' + dup.title + '”. Zapisać mimo to?')) return;
   const r = Object.assign({}, draft); delete r._new; delete r._i; delete r.imgs; delete r.imageQuery;
   const i = S.recipes.findIndex(x => x.id === r.id);
+  const prev = i >= 0 ? S.recipes[i] : null;
   if (i >= 0) S.recipes[i] = r; else S.recipes.unshift(r);
-  save(); draft = null; closeSheet(); toast('Zapisano w „Przepisy”');
-  if (route.v === 'recipe') render(); else { stack = []; route = { v: 'recipes' }; render(); }
+  let ok = save(), note = 'Zapisano w „Przepisy”';
+  if (!ok && r.image) { r.image = ''; ok = save(); note = 'Zapisano bez zdjęcia (brak miejsca w pamięci)'; }
+  if (!ok) { if (prev) S.recipes[i] = prev; else S.recipes.shift(); toast('Nie udało się zapisać - szkic został, spróbuj ponownie'); return; }
+  draft = null; clearDraft(); closeSheet(); toast(note);
+  if (route.v === 'recipe') render(); else tab('recipes');
 }
 
 /* =====================  EDYTORY: roślina / wydarzenie / notatka / link  ===================== */
@@ -961,7 +1312,7 @@ const A = {
   back: () => back(),
   plantsGo: () => go('plants'),
   add: () => openAdd(''),
-  closeSheet: () => { draft = null; closeSheet(); },
+  closeSheet: () => { draft = null; clearDraft(); closeSheet(); },
   addPhoto: async () => {
     const img = await pickImage(1200); if (!img) return;
     pendingImg = img; $('#addImgBox').innerHTML = `<img class="thumb" src="${img}" alt="" style="height:140px;margin-bottom:8px">`;
@@ -989,8 +1340,22 @@ const A = {
   editRecipe: (d) => openRecipeEditor(byId(S.recipes, d.id), false),
   delRecipe: (d) => { if (confirm('Usunąć przepis?')) { S.recipes = S.recipes.filter(r => r.id !== d.id); save(); back(); } },
   saveRecipe: () => saveDraftRecipe(),
+  backups: async () => {
+    const l = await listBackups();
+    sheet('<h1 style="font-size:22px">Kopie automatyczne</h1><p class="muted">Telefon sam zapisuje kopię raz dziennie (ostatnie 7 dni). Wybierz dzień, aby przywrócić dane z tamtego dnia.</p>' +
+      (l.length ? l.map(k => '<button class="btn ghost block" style="margin:6px 0" data-act="restoreBackup" data-k="' + k + '">' + esc(k.slice(7)) + '</button>').join('') : '<div class="muted card">Brak kopii - pojawi się po pierwszym zapisie danych.</div>') +
+      '<button class="btn red block" data-act="closeSheet" style="margin-top:10px">Zamknij</button>');
+  },
+  restoreBackup: async d => {
+    if (!confirm('Przywrócić dane z ' + d.k.slice(7) + '? Obecne dane zostaną zastąpione.')) return;
+    try {
+      const o = JSON.parse(await idbGet(d.k));
+      S = Object.assign(JSON.parse(JSON.stringify(DEF)), o, { settings: Object.assign({}, DEF.settings, o.settings || {}) });
+      save(); closeSheet(); render(); toast('Przywrócono dane z ' + d.k.slice(7));
+    } catch (e) { toast('Nie udało się przywrócić kopii'); }
+  },
   imgNext: () => { if (!draft) return; if (!draft.imgs.length) { loadDraftImages(); return; } draft._i = ((draft._i || 0) + 1) % draft.imgs.length; draft.image = draft.imgs[draft._i]; paintRecipeImg(); },
-  imgOwn: async () => { const i = await pickImage(900); if (i && draft) { draft.image = i; paintRecipeImg(); } },
+  imgOwn: async () => { saveDraftSoon(); const i = await pickImage(900); if (i && draft) { draft.image = i; paintRecipeImg(); saveDraftSoon(); } },
   imgNone: () => { if (draft) { draft.image = ''; draft.imgs = []; const b = $('#rimg'); if (b) b.innerHTML = ''; } },
   toShop: (d) => {
     const r = byId(S.recipes, d.id); let n = 0;
@@ -1059,21 +1424,43 @@ const A = {
 
   /* asystent */
   chatClear: () => { S.chat = []; save(); render(); },
-  chatSend: async () => {
-    const t = val('chatIn'); if (!t) return;
-    if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
-    S.chat.push({ role: 'user', text: t }); save(); render();
-    busy(true, 'Myślę…');
+  chatMic: async () => {
+    const SR = micPlugin(), ta = $('#chatIn'), b = $('#micBtn');
+    if (!SR) { toast('Dyktowanie: użyj ikony mikrofonu na klawiaturze telefonu'); if (ta) ta.focus(); return; }
     try {
-      const msgs = S.chat.slice(-12).map(m => ({ role: m.role === 'user' ? 'user' : 'assistant', content: m.text }));
-      while (msgs.length && msgs[0].role !== 'user') msgs.shift();
-      const out = await claude({
-        system: 'Jesteś ciepłym, zwięzłym asystentem osobistym w aplikacji „Mój Dzień”. Odpowiadasz po polsku. Masz dostęp do danych użytkownika (poniżej) - korzystaj z nich, gdy pytanie dotyczy jej/jego planów, przepisów, linków, notatek, zakupów czy roślin; gdy czegoś nie ma w danych, powiedz to wprost.\n\nDANE UŻYTKOWNIKA:\n' + buildContext(),
-        messages: msgs, max: 1500
-      });
-      S.chat.push({ role: 'assistant', text: out });
-    } catch (e) { S.chat.push({ role: 'assistant', text: 'Błąd: ' + e.message }); }
-    finally { busy(false); save(); render(); }
+      if (micOn) { micOn = false; b.classList.remove('rec'); await SR.stop(); return; }
+      const av = await SR.available(); if (!av.available) throw new Error('niedostępne');
+      const pm = await SR.requestPermissions(); if (pm.speechRecognition && pm.speechRecognition !== 'granted') { toast('Zezwól aplikacji na użycie mikrofonu'); return; }
+      micOn = true; b.classList.add('rec'); const base = ta.value ? ta.value.trim() + ' ' : '';
+      await SR.removeAllListeners();
+      await SR.addListener('partialResults', d => { if (d.matches && d.matches[0]) { ta.value = base + d.matches[0]; ta.dispatchEvent(new Event('input', { bubbles: true })); } });
+      await SR.addListener('listeningState', d => { if (d.status === 'stopped') { micOn = false; const bb = $('#micBtn'); if (bb) bb.classList.remove('rec'); } });
+      await SR.start({ language: 'pl-PL', partialResults: true, popup: false });
+    } catch (e) { micOn = false; if (b) b.classList.remove('rec'); toast('Dyktowanie niedostępne - użyj mikrofonu na klawiaturze'); }
+  },
+  chatSend: async () => {
+    if (chatBusy) return;
+    const ta = $('#chatIn'); const t = ta ? ta.value.trim() : ''; if (!t) return;
+    if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
+    S.chat.push({ role: 'user', text: t }); save();
+    ta.value = ''; ta.style.height = ''; chatBusy = true; paintChat(); ta.focus();
+    try {
+      const out = await claude({ system: CHAT_SYSTEM + buildContext(), messages: chatHistory(), max: 1500, json: true });
+      let p = parseAssistant(out);
+      const ws = (p.actions || []).find(a => a && a.type === 'web_search' && a.query);
+      if (ws) {
+        let found = '';
+        try { found = await webSearch(ws.query); } catch (e) { found = 'Wyszukiwanie nie powiodło się: ' + (e.message || e); }
+        const hist = chatHistory();
+        hist.push({ role: 'assistant', content: JSON.stringify({ reply: p.reply, actions: [ws] }) });
+        hist.push({ role: 'user', content: '[WYNIKI WYSZUKIWANIA W INTERNECIE dla „' + ws.query + '”]\n' + String(found).slice(0, 6000) + '\n[KONIEC WYNIKÓW - odpowiedz użytkownikowi na ich podstawie; nie używaj już web_search]' });
+        const out2 = await claude({ system: CHAT_SYSTEM + buildContext(), messages: hist, max: 1500, json: true });
+        p = parseAssistant(out2); p.actions = (p.actions || []).filter(a => !a || a.type !== 'web_search');
+      }
+      const acts = runActions(p.actions);
+      S.chat.push({ role: 'assistant', text: p.reply || '(brak odpowiedzi)', acts, ax: p.actions });
+    } catch (e) { S.chat.push({ role: 'assistant', text: 'Błąd: ' + (e.message || e) }); }
+    chatBusy = false; save(); paintChat();
   },
 
   /* ustawienia */
@@ -1085,6 +1472,8 @@ const A = {
 
 function init() {
   S = load();
+  window.addEventListener('unhandledrejection', ev => { try { busy(false); toast('Coś poszło nie tak - dane są bezpieczne'); } catch (e) {} });
+  window.addEventListener('error', () => { try { busy(false); } catch (e) {} });
   document.addEventListener('click', ev => {
     if (ev.target.id === 'sheet') { draft = null; closeSheet(); return; }
     const t = ev.target.closest('[data-act]');
@@ -1095,6 +1484,8 @@ function init() {
     const live = ev.target.dataset && ev.target.dataset.live;
     if (live === 'links') $('#list').innerHTML = listLinks(ev.target.value);
     if (live === 'recipes') $('#list').innerHTML = listRecipes(ev.target.value, favOnly);
+    if (draft && ev.target.closest && ev.target.closest('#panel')) { clearTimeout(saveDraftSoon._t); saveDraftSoon._t = setTimeout(saveDraftSoon, 600); }
+    if (ev.target.id === 'chatIn') { ev.target.style.height = 'auto'; ev.target.style.height = Math.min(ev.target.scrollHeight, 120) + 'px'; }
   });
   document.addEventListener('keydown', ev => {
     const en = ev.target.dataset && ev.target.dataset.enter;
@@ -1108,11 +1499,21 @@ function init() {
       $('#sBaseWrap').classList.toggle('hidden', ev.target.value !== 'openai');
     }
   });
+  try {
+    const ap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (ap && ap.addListener) ap.addListener('backButton', backPress);
+  } catch (e) { /* bez natywnego Wstecz działa strzałka w aplikacji */ }
+  window.addEventListener('resize', () => { if (route.v === 'chat') window.scrollTo(0, document.documentElement.scrollHeight); });
   window.onShared = () => { const t = window.__shared; window.__shared = null; if (t) { render(); openAdd(t); } };
   render();
   if (window.__shared) window.onShared();
   // przypomnienia o roślinach po starcie (np. po restarcie telefonu)
   S.plants.forEach(schedulePlant);
+  recoverFromIdb();
+  try {
+    const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+    if (d && d.title && !window.__shared) { openRecipeEditor(d, !!d._new); toast('Przywrócono niedokończony przepis'); }
+  } catch (e) {}
 }
 
 if (typeof document !== 'undefined') init();

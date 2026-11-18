@@ -137,6 +137,10 @@ function toast(msg) {
 }
 function busy(on, txt) { $('#busyText').textContent = txt || 'Chwila…'; $('#busy').classList.toggle('hidden', !on); }
 function sheet(html) { $('#panel').innerHTML = html; $('#sheet').classList.remove('hidden'); }
+function dismissSheet() {
+  if (draft && !confirm('Odrzucić niezapisany przepis?')) return;
+  draft = null; clearDraft(); closeSheet();
+}
 function closeSheet() { $('#sheet').classList.add('hidden'); $('#panel').innerHTML = ''; }
 const val = id => { const e = $('#' + id); return e ? e.value.trim() : ''; };
 
@@ -1106,7 +1110,7 @@ function back() { route = stack.pop() || { v: 'start' }; render(); window.scroll
 function tab(v) { stack = v === 'start' ? [] : [{ v: 'start' }]; route = { v }; render(); window.scrollTo(0, 0); }
 // przycisk Wstecz w Androidzie: zamyka okno, potem wraca o ekran, na Start zamyka aplikację
 function backPress() {
-  if (!$('#sheet').classList.contains('hidden')) { draft = null; closeSheet(); return; }
+  if (!$('#sheet').classList.contains('hidden')) { dismissSheet(); return; }
   if (!$('#busy').classList.contains('hidden')) return;
   if (route.v !== 'start') { back(); return; }
   const ap = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
@@ -1120,8 +1124,7 @@ function openAdd(prefill) {
     <p class="muted">Wklej link, przepis, notatkę, listę zakupów… albo dodaj zdjęcie. AI rozpozna, co to jest, i zapisze we właściwym miejscu.</p>
     <textarea id="addText" placeholder="Wklej tutaj…">${esc(prefill || '')}</textarea>
     <div id="addImgBox"></div>
-    <div class="btns"><button class="btn ghost" data-act="addPhoto">📷 Zdjęcie</button><button class="btn" data-act="addGo" style="flex:1">Rozpoznaj i zapisz</button></div>
-    <div class="btns"><button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
+    <div class="btns foot"><button class="btn ghost" data-act="addPhoto">📷 Zdjęcie</button><button class="btn" data-act="addGo">Rozpoznaj i zapisz</button></div>`);
   if (prefill) setTimeout(() => handleAdd(prefill, null), 100);
 }
 
@@ -1293,7 +1296,7 @@ function openRecipeEditor(r, isNew) {
     <label>Składniki (podgrupy zaczynaj od „# Nazwa”)</label><textarea id="rIng" style="min-height:170px">${esc(ingToText(draft.groups))}</textarea>
     <label>Notatki</label><textarea id="rNotes" style="min-height:90px">${esc(draft.notes || '')}</textarea>
     <label>Wykonanie (jeden krok w linii)</label><textarea id="rSteps" style="min-height:170px">${esc(draft.steps.join('\n'))}</textarea>
-    <div class="btns"><button class="btn" data-act="saveRecipe" style="flex:1">Zapisz przepis</button><button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
+    <div class="btns foot"><button class="btn" data-act="saveRecipe">Zapisz przepis</button></div>`);
   paintRecipeImg();
   saveDraftSoon();
   if (!draft.image) loadDraftImages();
@@ -1349,7 +1352,7 @@ function openPlantEditor(p) {
     <div class="cols2"><div><label>Podlewanie co (dni)</label><input id="pWater" inputmode="numeric" value="${p.waterDays || 7}"></div>
     <div><label>Nawożenie co (dni)</label><input id="pFert" inputmode="numeric" placeholder="0 = brak" value="${p.fertDays == null ? 30 : p.fertDays}"></div></div>
     <label>Notatka</label><textarea id="pNote" style="min-height:70px">${esc(p.note || '')}</textarea>
-    <div class="btns"><button class="btn" data-act="savePlant" style="flex:1">Zapisz</button>${p.id ? `<button class="btn red" data-act="delPlant" data-id="${p.id}">Usuń</button>` : ''}<button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
+    <div class="btns foot"><button class="btn" data-act="savePlant">Zapisz</button>${p.id ? `<button class="btn red" data-act="delPlant" data-id="${p.id}">Usuń</button>` : ''}</div>`);
 }
 function openEventEditor(e, isNew) {
   e = e || { kind: 'event', date: today() };
@@ -1361,7 +1364,7 @@ function openEventEditor(e, isNew) {
     <div class="cols2"><div><label>Rodzaj</label><select id="eKind"><option value="event" ${e.kind !== 'task' ? 'selected' : ''}>Wydarzenie</option><option value="task" ${e.kind === 'task' ? 'selected' : ''}>Zadanie</option></select></div>
     <div><label>Przypomnienie</label><select id="eRemind">${[['-1', 'brak'], ['0', 'o czasie'], ['10', '10 min wcześniej'], ['30', '30 min wcześniej'], ['60', '1 h wcześniej'], ['1440', '1 dzień wcześniej']].map(o => `<option value="${o[0]}" ${String(e.remind == null ? '0' : e.remind) === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div></div>
     <label>Notatka</label><input id="eNote" value="${esc(e.note || '')}">
-    <div class="btns"><button class="btn" data-act="saveEvent" style="flex:1">Zapisz</button>${e.id ? `<button class="btn red" data-act="delEvent" data-id="${e.id}">Usuń</button>` : ''}<button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
+    <div class="btns foot"><button class="btn" data-act="saveEvent">Zapisz</button>${e.id ? `<button class="btn red" data-act="delEvent" data-id="${e.id}">Usuń</button>` : ''}</div>`);
 }
 function scheduleEvent(e) {
   unnotify('ev' + e.id);
@@ -1375,7 +1378,7 @@ function openNoteEditor(n) {
   sheet(`<h1 style="font-size:22px">${n.id ? 'Notatka' : 'Nowa notatka'}</h1>
     <input type="hidden" id="nId" value="${n.id || ''}">
     <textarea id="nText" style="min-height:200px" placeholder="Pisz…">${esc(n.text || '')}</textarea>
-    <div class="btns"><button class="btn" data-act="saveNote" style="flex:1">Zapisz</button>${n.id ? `<button class="btn ghost" data-act="pinNote" data-id="${n.id}">${n.pin ? 'Odepnij' : '📌 Przypnij'}</button><button class="btn red" data-act="delNote" data-id="${n.id}">Usuń</button>` : ''}<button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
+    <div class="btns foot"><button class="btn" data-act="saveNote">Zapisz</button>${n.id ? `<button class="btn ghost" data-act="pinNote" data-id="${n.id}">${n.pin ? 'Odepnij' : '📌 Przypnij'}</button><button class="btn red" data-act="delNote" data-id="${n.id}">Usuń</button>` : ''}</div>`);
 }
 function openLinkEditor(l) {
   sheet(`<h1 style="font-size:22px">Edytuj link</h1>
@@ -1384,7 +1387,7 @@ function openLinkEditor(l) {
     <label>Adres</label><input id="lUrl" value="${esc(l.url || '')}">
     <label>Tagi (po przecinku)</label><input id="lTags" value="${esc((l.tags || []).join(', '))}">
     <label>Notatka</label><input id="lNote" value="${esc(l.note || '')}">
-    <div class="btns"><button class="btn" data-act="saveLink" style="flex:1">Zapisz</button><button class="btn red" data-act="closeSheet">Anuluj</button></div>`);
+    <div class="btns foot"><button class="btn" data-act="saveLink">Zapisz</button></div>`);
 }
 
 /* =====================  AKCJE (delegacja kliknięć)  ===================== */
@@ -1426,8 +1429,7 @@ const A = {
   backups: async () => {
     const l = await listBackups();
     sheet('<h1 style="font-size:22px">Kopie automatyczne</h1><p class="muted">Telefon sam zapisuje kopię raz dziennie (ostatnie 7 dni). Wybierz dzień, aby przywrócić dane z tamtego dnia.</p>' +
-      (l.length ? l.map(k => '<button class="btn ghost block" style="margin:6px 0" data-act="restoreBackup" data-k="' + k + '">' + esc(k.slice(7)) + '</button>').join('') : '<div class="muted card">Brak kopii - pojawi się po pierwszym zapisie danych.</div>') +
-      '<button class="btn red block" data-act="closeSheet" style="margin-top:10px">Zamknij</button>');
+      (l.length ? l.map(k => '<button class="btn ghost block" style="margin:6px 0" data-act="restoreBackup" data-k="' + k + '">' + esc(k.slice(7)) + '</button>').join('') : '<div class="muted card">Brak kopii - pojawi się po pierwszym zapisie danych.</div>'));
   },
   restoreBackup: async d => {
     if (!confirm('Przywrócić dane z ' + d.k.slice(7) + '? Obecne dane zostaną zastąpione.')) return;
@@ -1549,7 +1551,7 @@ const A = {
   /* ustawienia */
   saveSettings: () => { const st = S.settings; st.name = val('sName') || 'Ania'; st.provider = val('sProv') || 'anthropic'; st.apiKey = val('sKey'); st.model = val('sModel') || PROVIDERS[st.provider].model; st.baseUrl = val('sBase'); save(); toast('Zapisano'); },
   exportData: async () => { try { await navigator.clipboard.writeText(JSON.stringify(S)); toast('Skopiowano - wklej do notatki/maila'); } catch (e) { toast('Nie udało się skopiować'); } },
-  importData: () => sheet(`<h1 style="font-size:22px">Wczytaj kopię</h1><p class="muted">Wklej skopiowane dane. Zastąpią obecne.</p><textarea id="impText"></textarea><div class="btns"><button class="btn" data-act="doImport">Wczytaj</button><button class="btn red" data-act="closeSheet">Anuluj</button></div>`),
+  importData: () => sheet(`<h1 style="font-size:22px">Wczytaj kopię</h1><p class="muted">Wklej skopiowane dane. Zastąpią obecne.</p><textarea id="impText"></textarea><div class="btns foot"><button class="btn" data-act="doImport">Wczytaj</button></div>`),
   doImport: () => { try { const j = JSON.parse(val('impText')); S = Object.assign(JSON.parse(JSON.stringify(DEF)), j); save(); closeSheet(); tab('start'); toast('Wczytano'); } catch (e) { toast('Niepoprawne dane'); } }
 };
 
@@ -1558,7 +1560,7 @@ function init() {
   window.addEventListener('unhandledrejection', ev => { try { busy(false); toast('Coś poszło nie tak - dane są bezpieczne'); } catch (e) {} });
   window.addEventListener('error', () => { try { busy(false); } catch (e) {} });
   document.addEventListener('click', ev => {
-    if (ev.target.id === 'sheet') { draft = null; closeSheet(); return; }
+    if (ev.target.id === 'sheet') { dismissSheet(); return; }
     const t = ev.target.closest('[data-act]');
     if (!t) return;
     const f = A[t.dataset.act]; if (f) f(t.dataset, t, ev);

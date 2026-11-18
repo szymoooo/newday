@@ -167,3 +167,7 @@ nav button.on{background:var(--acc2);color:var(--accd);font-weight:800}
 
 .chatbar .ghost{background:#fff;color:var(--accd)}
 .chatbar .rec{background:#E5484D;color:#fff;animation:bl 1s infinite}
+
+.btns.foot{flex-wrap:nowrap}
+.btns.foot .btn{flex:1;min-width:0;white-space:nowrap;padding-left:10px;padding-right:10px;justify-content:center}
+.btns.foot .btn:not(.red):not(.ghost){flex:1.7}

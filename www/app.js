@@ -1209,7 +1209,7 @@ function vSettings() {
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
     '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button><button class="btn ghost" data-act="backups">Kopie automatyczne</button></div></div>' +
-    '<div class="card"><h3>Układ strony głównej (test)</h3><div class="muted" style="margin:6px 0 10px">A: Linki w dolnym pasku. B: Asystent w pasku, „+” w rogu. C: Asystent jako środkowy przycisk, bez „+” na Starcie.</div><div class="btns">' + ['A', 'B', 'C'].map(l => '<button class="btn ' + (layout() === l ? '' : 'ghost') + '" data-act="setLayout" data-l="' + l + '">' + l + '</button>').join('') + '</div></div>' +
+    '<div class="card"><h3>Układ strony głównej</h3><div class="muted" style="margin:6px 0 10px">A: Linki w dolnym pasku. B: Asystent w pasku, „+” w rogu. C (domyślny): Asystent jako środkowy przycisk, bez „+” na Starcie.</div><div class="btns">' + ['A', 'B', 'C'].map(l => '<button class="btn ' + (layout() === l ? '' : 'ghost') + '" data-act="setLayout" data-l="' + l + '">' + l + '</button>').join('') + '</div></div>' +
     '<div class="card"><h3>Powiadomienia</h3><div class="muted" style="margin:6px 0 10px">Jeśli przypomnienia spóźniają się albo nie grają: zezwól na dokładne alarmy, a w ustawieniach telefonu (Aplikacje → Mój Dzień → Bateria) wybierz „Bez ograniczeń”. Nie zamykaj aplikacji opcją „wymuś zatrzymanie”.</div><div class="btns"><button class="btn ghost" data-act="notifFix">Zezwól na dokładne alarmy</button><button class="btn ghost" data-act="notifTest">Test dźwięku (za 5 s)</button></div></div>' +
     '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">' + ((APP_CFG.fallbacks || []).filter(f => f.apiKey).length ? 'Zapasowe AI (gdy skończy się limit): ' + (APP_CFG.fallbacks || []).filter(f => f.apiKey).map(f => esc(f.label)).join(', ') + '<br>' : '') + 'Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
 }
@@ -1238,7 +1238,7 @@ const VIEWS = { start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe
 /* =====================  ROUTER  ===================== */
 const FAB_VIEWS = ['start', 'links', 'recipes'];
 /* układ strony głównej: A (Linki w pasku) / B (Asystent w pasku) / C (Asystent jako środkowy przycisk, bez "+" na Starcie) */
-const layout = () => (['A', 'B', 'C'].includes(S.settings.layout) ? S.settings.layout : 'A');
+const layout = () => (['A', 'B', 'C'].includes(S.settings.layout) ? S.settings.layout : 'C');
 const NAV_ITEMS = { start: ['home', 'Start'], links: ['link', 'Linki'], recipes: ['cook', 'Przepisy'], chat: ['chat', 'Asystent'], shopping: ['cart', 'Zakupy'], more: ['grid', 'Więcej'] };
 const NAV_ORDER = { A: ['start', 'links', 'recipes', 'shopping', 'more'], B: ['start', 'recipes', 'chat', 'shopping', 'more'], C: ['start', 'recipes', 'chat', 'shopping', 'more'] };
 function buildNav() {

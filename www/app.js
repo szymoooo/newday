@@ -814,7 +814,7 @@ function vStart() {
     count++;
     const w = plantDue(p).water <= 0;
     rows += '<div class="prow"><span class="ico sm c-green">' + ic(w ? 'drop' : 'leaf') + '</span><div class="grow"><div class="t">' + esc(p.name) +
-      '</div><div class="muted">Kwiaty · ' + (w ? 'podlej dziś' : 'nawieź dziś') + '</div></div><button class="btn sm ghost" data-act="' + (w ? 'plantWater' : 'plantFert') + '" data-id="' + p.id + '">' + (w ? 'Podlane' : 'Nawiezione') + '</button></div>';
+      '</div><div class="muted">Rośliny · ' + (w ? 'podlej dziś' : 'nawieź dziś') + '</div></div><button class="btn sm ghost" data-act="' + (w ? 'plantWater' : 'plantFert') + '" data-id="' + p.id + '">' + (w ? 'Podlane' : 'Nawiezione') + '</button></div>';
   });
   if (open) rows += '<div class="prow" data-act="tab" data-v="shopping" style="cursor:pointer"><span class="ico sm c-pink">' + ic('cart') + '</span><div class="grow"><div class="t">' + open + ' ' + rz(open) + ' do kupienia</div><div class="muted">Zakupy</div></div></div>';
   if (!rows) rows = '<div class="muted" style="padding:16px 0">' + (doneN ? 'Wszystko na dziś zrobione - świetnie!' : 'Na dziś pusto - miłego dnia!') + '</div>';
@@ -827,7 +827,7 @@ function vStart() {
     '<button class="ibtn round" style="width:44px;min-width:44px;min-height:44px" data-act="go" data-v="events" aria-label="Kalendarz">' + ic('cal', 22) + '</button></div>' +
     '<div class="card flush">' + rows + '</div>' +
     '<h2>Szybkie akcje</h2><div class="grid">' +
-    tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('go', 'leaf', 'c-green', 'Kwiaty', 'plants') + '</div>' +
+    (layout() === 'A' ? tile('go', 'chat', 'c-purple', 'Asystent', 'chat') + tile('newNote', 'note', 'c-yellow', 'Notatka') : tile('newNote', 'note', 'c-yellow', 'Notatka') + tile('go', 'link', 'c-blue', 'Linki', 'links')) + tile('go', 'leaf', 'c-green', 'Rośliny', 'plants') + '</div>' +
     '';
 }
 function evRow(e, late, edit) {
@@ -949,7 +949,7 @@ function vMore() {
     tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') + tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
 }
 
-/* --- Kwiaty --- */
+/* --- Rośliny --- */
 function vPlants() {
   const cards = S.plants.map(p => {
     const d = plantDue(p);
@@ -960,7 +960,7 @@ function vPlants() {
       (p.fertDays ? '<button class="btn sm ghost" data-act="plantFert" data-id="' + p.id + '">Nawiezione</button>' : '') +
       '<button class="btn sm ghost" data-act="editPlant" data-id="' + p.id + '">Edytuj</button></div></div>';
   }).join('') || '<div class="muted card">Brak roślin. Dodaj pierwszą - możesz zrobić zdjęcie i poprosić AI o rozpoznanie.</div>';
-  return hdr('Kwiaty', true, '<button class="btn sm" data-act="newPlant">+ Roślina</button>') + cards;
+  return hdr('Rośliny', true, '<button class="btn sm" data-act="newPlant">+ Roślina</button>') + cards;
 }
 
 /* --- Kalendarz --- */
@@ -1209,6 +1209,7 @@ function vSettings() {
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
     '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button><button class="btn ghost" data-act="backups">Kopie automatyczne</button></div></div>' +
+    '<div class="card"><h3>Układ strony głównej (test)</h3><div class="muted" style="margin:6px 0 10px">A: Linki w dolnym pasku. B: Asystent w pasku, „+” w rogu. C: Asystent jako środkowy przycisk, bez „+” na Starcie.</div><div class="btns">' + ['A', 'B', 'C'].map(l => '<button class="btn ' + (layout() === l ? '' : 'ghost') + '" data-act="setLayout" data-l="' + l + '">' + l + '</button>').join('') + '</div></div>' +
     '<div class="card"><h3>Powiadomienia</h3><div class="muted" style="margin:6px 0 10px">Jeśli przypomnienia spóźniają się albo nie grają: zezwól na dokładne alarmy, a w ustawieniach telefonu (Aplikacje → Mój Dzień → Bateria) wybierz „Bez ograniczeń”. Nie zamykaj aplikacji opcją „wymuś zatrzymanie”.</div><div class="btns"><button class="btn ghost" data-act="notifFix">Zezwól na dokładne alarmy</button><button class="btn ghost" data-act="notifTest">Test dźwięku (za 5 s)</button></div></div>' +
     '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">' + ((APP_CFG.fallbacks || []).filter(f => f.apiKey).length ? 'Zapasowe AI (gdy skończy się limit): ' + (APP_CFG.fallbacks || []).filter(f => f.apiKey).map(f => esc(f.label)).join(', ') + '<br>' : '') + 'Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
 }
@@ -1236,12 +1237,23 @@ const VIEWS = { start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe
 
 /* =====================  ROUTER  ===================== */
 const FAB_VIEWS = ['start', 'links', 'recipes'];
+/* układ strony głównej: A (Linki w pasku) / B (Asystent w pasku) / C (Asystent jako środkowy przycisk, bez "+" na Starcie) */
+const layout = () => (['A', 'B', 'C'].includes(S.settings.layout) ? S.settings.layout : 'A');
+const NAV_ITEMS = { start: ['home', 'Start'], links: ['link', 'Linki'], recipes: ['cook', 'Przepisy'], chat: ['chat', 'Asystent'], shopping: ['cart', 'Zakupy'], more: ['grid', 'Więcej'] };
+const NAV_ORDER = { A: ['start', 'links', 'recipes', 'shopping', 'more'], B: ['start', 'recipes', 'chat', 'shopping', 'more'], C: ['start', 'recipes', 'chat', 'shopping', 'more'] };
+function buildNav() {
+  const nav = $('#nav'), L = layout();
+  if (nav.dataset.lay === L) return;
+  nav.dataset.lay = L;
+  nav.innerHTML = NAV_ORDER[L].map(k => '<button data-act="tab" data-v="' + k + '" data-t="' + k + '"' + (L === 'C' && k === 'chat' ? ' class="center"' : '') + '><span class="ni">' + ic(NAV_ITEMS[k][0], L === 'C' && k === 'chat' ? 28 : 26) + '</span>' + NAV_ITEMS[k][1] + '</button>').join('');
+}
 function render() {
+  buildNav();
   $('#view').innerHTML = VIEWS[route.v](route.p);
-  document.body.className = 'v-' + route.v;
-  const m = { start: 'start', links: 'links', recipes: 'recipes', recipe: 'recipes', shopping: 'shopping' }[route.v] || 'more';
+  document.body.className = 'v-' + route.v + ' lay-' + layout();
+  const m = Object.assign({ start: 'start', links: 'links', recipes: 'recipes', recipe: 'recipes', shopping: 'shopping' }, layout() === 'A' ? {} : { chat: 'chat' })[route.v] || 'more';
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.t === m));
-  $('#fab').classList.toggle('hidden', !FAB_VIEWS.includes(route.v));
+  $('#fab').classList.toggle('hidden', !FAB_VIEWS.includes(route.v) || (layout() === 'C' && route.v === 'start'));
   const sb = document.querySelector('#nav button[data-t=shopping]');
   if (sb) {
     let b = sb.querySelector('.badge');
@@ -1664,6 +1676,7 @@ const A = {
       toast('Za 5 sekund przyjdzie test - możesz zablokować ekran');
     } catch (e) { toast('Nie udało się wysłać testu'); }
   },
+  setLayout: (d) => { S.settings.layout = d.l; save(); render(); },
   rcatFilter: (d) => { rcatSel = d.c || ''; render(); },
   rcatToggle: (d) => {
     if (!draft) return;

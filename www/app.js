@@ -1398,7 +1398,7 @@ function splitNumbered(lines) {
       if (/:\s*$/.test(l) && l.length < 60) {
         const nx = body[i + 1] || '';
         if (isDash(nx) || /^-\d/.test(nx) || (isQty(nx) && !/[.!?]$/.test(nx))) {
-          cur = { name: l.replace(/^[\*\s–-]+/, '').replace(/^Składniki( na)?\s*/i, '').replace(/:\s*$/, '').trim(), items: [] }; cur.name = cur.name.charAt(0).toUpperCase() + cur.name.slice(1); groups.push(cur);
+          cur = { name: l.replace(/^[\*\s–-]+/, '').replace(/^Składniki( na)?\s*/i, '').replace(/^[\s–-]+/, '').replace(/:\s*$/, '').trim(), items: [] }; cur.name = cur.name.charAt(0).toUpperCase() + cur.name.slice(1); groups.push(cur);
           while (isQty(body[i + 1] || '') && !isDash(body[i + 1])) { i++; cur.items.push(parseIngredient(body[i])); }
         }
         continue;

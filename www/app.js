@@ -173,7 +173,7 @@ async function notify(key, title, body, at) {
     if (perm.display !== 'granted') return;
     await ensureChannel(p);
     await p.cancel({ notifications: [{ id: nid(key) }] });
-    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', schedule: { at, allowWhileIdle: true } }] });
+    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', smallIcon: 'ic_stat_mojdzien', largeIcon: 'ic_notif_large', iconColor: '#EE7A38', schedule: { at, allowWhileIdle: true } }] });
   } catch (e) { /* brak zgody / brak natywnego środowiska */ }
 }
 async function unnotify(key) { const p = LN(); if (p) { try { await p.cancel({ notifications: [{ id: nid(key) }] }); } catch (e) {} } }
@@ -1585,7 +1585,7 @@ async function scheduleEvent(e) {
     if (!occursOn(e, d) || isDoneOn(e, d)) continue;
     rems.forEach(min => {
       const at = new Date(d + 'T' + (e.time || '09:00') + ':00'); at.setMinutes(at.getMinutes() - min);
-      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', schedule: { at, allowWhileIdle: true } });
+      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', smallIcon: 'ic_stat_mojdzien', largeIcon: 'ic_notif_large', iconColor: '#EE7A38', schedule: { at, allowWhileIdle: true } });
     });
   }
   if (!list.length) return;
@@ -1660,7 +1660,7 @@ const A = {
     try {
       const perm = await p.requestPermissions(); if (perm.display !== 'granted') { toast('Włącz powiadomienia dla aplikacji w ustawieniach telefonu'); return; }
       await ensureChannel(p);
-      await p.schedule({ notifications: [{ id: 2147000001, title: 'Test', body: 'Tak brzmi powiadomienie', channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true } }] });
+      await p.schedule({ notifications: [{ id: 2147000001, title: 'Test', body: 'Tak brzmi powiadomienie', channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', smallIcon: 'ic_stat_mojdzien', largeIcon: 'ic_notif_large', iconColor: '#EE7A38', schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true } }] });
       toast('Za 5 sekund przyjdzie test - możesz zablokować ekran');
     } catch (e) { toast('Nie udało się wysłać testu'); }
   },

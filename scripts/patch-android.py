@@ -28,7 +28,7 @@ def _gradient(n):
     return ImageOps.colorize(g, C_TOP, C_BOTTOM).convert('RGBA')
 
 
-def _sun(n):
+def _sun(n, scale=1.0):
     """Białe słońce na przezroczystym tle; promienie mieszczą się w strefie bezpiecznej ikony adaptacyjnej."""
     from PIL import Image, ImageDraw
     k = 4
@@ -36,7 +36,7 @@ def _sun(n):
     im = Image.new('RGBA', (big, big), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
     c = big / 2
-    R = big * 0.30
+    R = big * 0.30 * scale
     r = R * 0.50
     d.ellipse([c - r, c - r, c + r, c + r], fill=WHITE)
     w = float(int(R * 0.20))
@@ -94,6 +94,17 @@ def make_icons(res):
     os.makedirs(vals, exist_ok=True)
     open(os.path.join(vals, 'ic_launcher_background.xml'), 'w', encoding='utf-8').write(
         '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#EE7A38</color>\n</resources>\n')
+
+
+def make_notif_icons(res):
+    """Ikona powiadomień: biała sylwetka słońca (status bar, tint z iconColor) + kolorowa duża ikona aplikacji."""
+    for dens, n in {'mdpi': 24, 'hdpi': 36, 'xhdpi': 48, 'xxhdpi': 72, 'xxxhdpi': 96}.items():
+        d = os.path.join(res, 'drawable-' + dens)
+        os.makedirs(d, exist_ok=True)
+        _sun(n, 1.55).save(os.path.join(d, 'ic_stat_mojdzien.png'))
+    nodpi = os.path.join(res, 'drawable-nodpi')
+    os.makedirs(nodpi, exist_ok=True)
+    render_legacy(192, 'circle').save(os.path.join(nodpi, 'ic_notif_large.png'))
 
 
 # ---------------------------------------------------------------- ekran startowy (splash)
@@ -229,6 +240,7 @@ public class MainActivity extends BridgeActivity {
     # ikona
     try:
         make_icons('android/app/src/main/res')
+        make_notif_icons('android/app/src/main/res')
         print('Icon: generated')
     except Exception as e:  # build nie powinien się wywrócić przez ikonę
         print('WARNING: icon not generated:', e)

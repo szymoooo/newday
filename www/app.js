@@ -1359,8 +1359,63 @@ async function getMeta(url) {
   return meta;
 }
 
+/* ---------- Substack: wpis z wieloma przepisami ---------- */
+const SUBSTACK_RE = /(^|\.)substack\.com$/i;
+async function substackPost(url) {
+  try {
+    const u = new URL(url); let api = '';
+    const id = (u.pathname.match(/\/(?:home\/)?post\/p-(\d+)/) || [])[1];
+    if (id) api = 'https://substack.com/api/v1/posts/by-id/' + id;
+    else { const sl = (u.pathname.match(/^\/p\/([^/?#]+)/) || [])[1]; if (sl) api = u.origin + '/api/v1/posts/' + sl; }
+    if (!api) return null;
+    const r = await withTimeout(fetch(api, { headers: { 'User-Agent': BROWSER_UA, 'Accept': 'application/json' } }), 15000);
+    const j = await r.json(); const p = j && (j.post || j);
+    if (!p || !p.body_html) return null;
+    return { title: p.title || '', html: p.body_html, img: p.cover_image || '', url: p.canonical_url || url };
+  } catch (e) { return null; }
+}
+const MULTI_SYSTEM = 'Jesteś modułem rozpoznawania przepisów w polskiej aplikacji. Dostajesz tekst wpisu, który może zawierać JEDEN lub WIELE różnych przepisów. Wyodrębnij KAŻDY przepis osobno. Pomiń reklamy, prośby o subskrypcję, komentarze i opisy bez przepisu. Odpowiadasz WYŁĄCZNIE poprawnym JSON-em: {"recipes":[{"title":"","servings":null,"total_min":null,"cook_min":null,"temp_c":null,"yield_text":"","notes":"","groups":[{"name":"","items":["500 g mąki"]}],"steps":["krok 1"],"image_query":"krótka fraza do zdjęcia potrawy","categories":["ciasta"]}]}. ' +
+  ANALYZE_SYSTEM.split('Wypełnij tylko pole pasujące do "type". ')[1];
+function splitRecipesLocal(lines) {
+  const idx = []; lines.forEach((l, i) => { if (/^Składniki/i.test(l) && l.length < 40) idx.push(i); });
+  const starts = idx.map(i => {
+    for (let k = i - 1; k >= 0 && k > i - 8; k--) { const l = lines[k]; if (l.length <= 90 && !/[.!?]$/.test(l) && !/^(czas|porcj|liczba|wydajność|dla |na )/i.test(l)) return k; }
+    return i;
+  });
+  const out = [];
+  starts.forEach((st, n) => {
+    const end = n + 1 < starts.length ? starts[n + 1] : lines.length;
+    const r = parseRecipeText(lines.slice(st, end).join('\n'));
+    if (r.groups.reduce((a, g) => a + g.items.length, 0) >= 3 && r.steps.length) out.push(r);
+  });
+  return out;
+}
+async function handleSubstack(url) {
+  const post = await substackPost(url);
+  if (!post) return false;
+  const lines = htmlToLines(post.html).split('\n').filter(l => !/^(subscribe|subskrybuj|sign in|already a (paid )?subscriber|share|udostępnij|zapisz się|leave a comment|zostaw komentarz)\b/i.test(l));
+  let recs = [];
+  if (hasKey()) {
+    try {
+      const out = await claude({ system: MULTI_SYSTEM, messages: [{ role: 'user', content: [{ type: 'text', text: 'Tytuł wpisu: ' + post.title + '\n\n' + lines.join('\n').slice(0, 24000) }] }], max: 8000 });
+      const j = extractJSON(out);
+      recs = (j.recipes || []).filter(a => a && (a.groups || []).length && (a.steps || []).length).map(aiToRecipe);
+    } catch (e) { /* spróbujemy lokalnie */ }
+  }
+  if (!recs.length) recs = splitRecipesLocal(lines);
+  if (!recs.length) return false;
+  recs.forEach(r => { r.source = post.url; });
+  if (recs.length === 1) { if (post.img) recs[0].image = await thumbToData(post.img); openRecipeEditor(recs[0], true); return true; }
+  let added = 0;
+  recs.forEach(r => { if (!S.recipes.some(x => x.source === r.source && x.title === r.title)) { S.recipes.unshift(r); added++; } });
+  save(); closeSheet(); tab('recipes');
+  toast('Zapisano przepisów: ' + added + (added < recs.length ? ' (reszta już była)' : ''));
+  return true;
+}
+
 async function handleUrl(url, extra) {
   extra = extra || '';
+  if (SUBSTACK_RE.test(domainOf(url)) && await handleSubstack(url)) return;
   const meta = await getMeta(url);
   const html = meta.html;
   const picture = async () => (meta.img ? await thumbToData(meta.img) : '');

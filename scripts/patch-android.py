@@ -163,7 +163,7 @@ def main():
         """
         m = m.replace('</activity>', share + '</activity>', 1)
     perms = ''
-    for p in ('android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.RECORD_AUDIO'):
+    for p in ('android.permission.POST_NOTIFICATIONS', 'android.permission.SCHEDULE_EXACT_ALARM', 'android.permission.USE_EXACT_ALARM', 'android.permission.RECEIVE_BOOT_COMPLETED', 'android.permission.RECORD_AUDIO'):
         if p not in m:
             perms += '    <uses-permission android:name="%s" />\n' % p
     if perms:

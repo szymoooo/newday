@@ -173,7 +173,7 @@ async function notify(key, title, body, at) {
     if (perm.display !== 'granted') return;
     await ensureChannel(p);
     await p.cancel({ notifications: [{ id: nid(key) }] });
-    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts_v2', schedule: { at, allowWhileIdle: true } }] });
+    await p.schedule({ notifications: [{ id: nid(key), title, body, channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', schedule: { at, allowWhileIdle: true } }] });
   } catch (e) { /* brak zgody / brak natywnego środowiska */ }
 }
 async function unnotify(key) { const p = LN(); if (p) { try { await p.cancel({ notifications: [{ id: nid(key) }] }); } catch (e) {} } }
@@ -1209,6 +1209,7 @@ function vSettings() {
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
     '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button><button class="btn ghost" data-act="backups">Kopie automatyczne</button></div></div>' +
+    '<div class="card"><h3>Powiadomienia</h3><div class="muted" style="margin:6px 0 10px">Jeśli przypomnienia spóźniają się albo nie grają: zezwól na dokładne alarmy, a w ustawieniach telefonu (Aplikacje → Mój Dzień → Bateria) wybierz „Bez ograniczeń”. Nie zamykaj aplikacji opcją „wymuś zatrzymanie”.</div><div class="btns"><button class="btn ghost" data-act="notifFix">Zezwól na dokładne alarmy</button><button class="btn ghost" data-act="notifTest">Test dźwięku (za 5 s)</button></div></div>' +
     '<div class="card"><h3>O aplikacji</h3><div class="muted" style="margin-top:6px">' + ((APP_CFG.fallbacks || []).filter(f => f.apiKey).length ? 'Zapasowe AI (gdy skończy się limit): ' + (APP_CFG.fallbacks || []).filter(f => f.apiKey).map(f => esc(f.label)).join(', ') + '<br>' : '') + 'Mój Dzień · wersja <b>' + esc(APP_VERSION) + '</b>' + (APP_DATE ? '<br>zbudowano: ' + esc(APP_DATE) : '') + '</div></div>';
 }
 
@@ -1584,7 +1585,7 @@ async function scheduleEvent(e) {
     if (!occursOn(e, d) || isDoneOn(e, d)) continue;
     rems.forEach(min => {
       const at = new Date(d + 'T' + (e.time || '09:00') + ':00'); at.setMinutes(at.getMinutes() - min);
-      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts_v2', schedule: { at, allowWhileIdle: true } });
+      if (at > now) list.push({ id: nid('ev' + e.id + '|' + d + '|' + min), title: e.kind === 'task' ? 'Zadanie' : 'Wydarzenie', body: e.title + (min ? ' - ' + remText(min) : ''), channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', schedule: { at, allowWhileIdle: true } });
     });
   }
   if (!list.length) return;
@@ -1642,6 +1643,27 @@ const A = {
 
   /* przepisy */
   toggleFav: () => { favOnly = !favOnly; render(); },
+  notifFix: async () => {
+    const p = LN(); if (!p) { toast('Dostępne w zainstalowanej aplikacji'); return; }
+    try {
+      const perm = await p.requestPermissions();
+      if (perm.display !== 'granted') { toast('Włącz powiadomienia dla aplikacji w ustawieniach telefonu'); return; }
+      let ex = 'granted';
+      try { ex = (await p.checkExactNotificationSetting()).exact_alarm; } catch (e) {}
+      if (ex === 'granted') { toast('Dokładne alarmy są włączone'); return; }
+      toast('Włącz „Alarmy i przypomnienia” dla aplikacji');
+      await p.changeExactNotificationSetting();
+    } catch (e) { toast('Nie udało się sprawdzić ustawień'); }
+  },
+  notifTest: async () => {
+    const p = LN(); if (!p) { toast('Dostępne w zainstalowanej aplikacji'); return; }
+    try {
+      const perm = await p.requestPermissions(); if (perm.display !== 'granted') { toast('Włącz powiadomienia dla aplikacji w ustawieniach telefonu'); return; }
+      await ensureChannel(p);
+      await p.schedule({ notifications: [{ id: 2147000001, title: 'Test', body: 'Tak brzmi powiadomienie', channelId: 'mojdzien_alerts_v2', sound: 'mojdzien_cowbell.wav', schedule: { at: new Date(Date.now() + 5000), allowWhileIdle: true } }] });
+      toast('Za 5 sekund przyjdzie test - możesz zablokować ekran');
+    } catch (e) { toast('Nie udało się wysłać testu'); }
+  },
   rcatFilter: (d) => { rcatSel = d.c || ''; render(); },
   rcatToggle: (d) => {
     if (!draft) return;
@@ -1833,7 +1855,8 @@ function init() {
   if (window.__shared) window.onShared();
   // przypomnienia o roślinach po starcie (np. po restarcie telefonu)
   S.plants.forEach(schedulePlant);
-  S.events.filter(e => e.rep).forEach(e => scheduleEvent(e));
+  if (S.settings.notifV !== 3) { S.events.filter(e => !e.done).forEach(e => scheduleEvent(e)); S.settings.notifV = 3; save(); }
+  else S.events.filter(e => e.rep).forEach(e => scheduleEvent(e));
   try { window.Capacitor.Plugins.App.addListener('resume', () => { S.events.filter(e => e.rep).forEach(e => scheduleEvent(e)); render(); }); } catch (e) {}
   recoverFromIdb();
   try {

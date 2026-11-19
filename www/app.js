@@ -1376,7 +1376,44 @@ async function substackPost(url) {
 }
 const MULTI_SYSTEM = 'Jesteś modułem rozpoznawania przepisów w polskiej aplikacji. Dostajesz tekst wpisu, który może zawierać JEDEN lub WIELE różnych przepisów. Wyodrębnij KAŻDY przepis osobno. Pomiń reklamy, prośby o subskrypcję, komentarze i opisy bez przepisu. Odpowiadasz WYŁĄCZNIE poprawnym JSON-em: {"recipes":[{"title":"","servings":null,"total_min":null,"cook_min":null,"temp_c":null,"yield_text":"","notes":"","groups":[{"name":"","items":["500 g mąki"]}],"steps":["krok 1"],"image_query":"krótka fraza do zdjęcia potrawy","categories":["ciasta"]}]}. ' +
   ANALYZE_SYSTEM.split('Wypełnij tylko pole pasujące do "type". ')[1];
+function splitNumbered(lines) {
+  const TITLE = /^\d+(?:\/\d+)*\.\s+\S/, END = /^(jeśli chcesz dostawać|zasubskrybuj|udostępnij|\d+ likes?\b|subscribe|dzięki, że tu jesteś)/i;
+  const st = []; lines.forEach((l, i) => { if (TITLE.test(l) && l.length < 160) st.push(i); });
+  if (st.length < 2) return [];
+  const isDash = l => /^[-–•]\s*\S/.test(l);
+  const isQty = l => /^[\d½¼¾⅓⅔]/.test(l) && l.length < 60;
+  const out = [];
+  st.forEach((a, n) => {
+    let body = lines.slice(a + 1, n + 1 < st.length ? st[n + 1] : lines.length);
+    const e = body.findIndex(x => END.test(x)); if (e >= 0) body = body.slice(0, e);
+    let head = lines[a].replace(/^\d+(?:\/\d+)*\.\s*/, '');
+    const link = (head.match(/(?:przepisu:\s*)(\S+?)\s*\)/i) || [])[1] || '';
+    const yld = (head.match(/\((ok\.[^)]*)\)/i) || [])[1] || '';
+    const title = head.replace(/\([^)]*\)?/g, '').replace(/[\s:]+$/, '').trim();
+    const groups = []; let cur = { name: '', items: [] }; groups.push(cur); const steps = [];
+    for (let i = 0; i < body.length; i++) {
+      const l = body[i];
+      if (l.startsWith('→')) continue;
+      if (isDash(l) || /^-\d/.test(l)) { cur.items.push(parseIngredient(l.replace(/^[-–•]\s*/, ''))); continue; }
+      if (/:\s*$/.test(l) && l.length < 60) {
+        const nx = body[i + 1] || '';
+        if (isDash(nx) || /^-\d/.test(nx) || (isQty(nx) && !/[.!?]$/.test(nx))) {
+          cur = { name: l.replace(/^[\*\s–-]+/, '').replace(/^Składniki( na)?\s*/i, '').replace(/:\s*$/, '').trim(), items: [] }; cur.name = cur.name.charAt(0).toUpperCase() + cur.name.slice(1); groups.push(cur);
+          while (isQty(body[i + 1] || '') && !isDash(body[i + 1])) { i++; cur.items.push(parseIngredient(body[i])); }
+        }
+        continue;
+      }
+      steps.push(l.replace(/^\*+/, ''));
+    }
+    const gs = groups.filter(g => g.items.length);
+    const t = (steps.join(' ').match(/(\d{2,3})\s*°\s*C/) || [])[1];
+    if (gs.reduce((x, g) => x + g.items.length, 0) < 3 || !steps.length) return;
+    out.push({ id: uid(), title: title || 'Nowy przepis', servings: null, total: null, cook: null, temp: t ? +t : null, yieldText: yld.replace(/^ok\.\s*/i, 'ok. '), notes: link ? 'Oryginał: ' + link : '', groups: gs, steps, image: '', imgs: [], source: '', fav: false, ts: Date.now() });
+  });
+  return out;
+}
 function splitRecipesLocal(lines) {
+  const num = splitNumbered(lines); if (num.length >= 2) return num;
   const idx = []; lines.forEach((l, i) => { if (/^Składniki/i.test(l) && l.length < 40) idx.push(i); });
   const starts = idx.map(i => {
     for (let k = i - 1; k >= 0 && k > i - 8; k--) { const l = lines[k]; if (l.length <= 90 && !/[.!?]$/.test(l) && !/^(czas|porcj|liczba|wydajność|dla |na )/i.test(l)) return k; }
@@ -1394,8 +1431,9 @@ async function handleSubstack(url) {
   const post = await substackPost(url);
   if (!post) return false;
   const lines = htmlToLines(post.html).split('\n').filter(l => !/^(subscribe|subskrybuj|sign in|already a (paid )?subscriber|share|udostępnij|zapisz się|leave a comment|zostaw komentarz)\b/i.test(l));
-  let recs = [];
-  if (hasKey()) {
+  let recs = splitNumbered(lines);
+  if (recs.length < 2) recs = [];
+  if (!recs.length && hasKey()) {
     try {
       const out = await claude({ system: MULTI_SYSTEM, messages: [{ role: 'user', content: [{ type: 'text', text: 'Tytuł wpisu: ' + post.title + '\n\n' + lines.join('\n').slice(0, 24000) }] }], max: 8000 });
       const j = extractJSON(out);

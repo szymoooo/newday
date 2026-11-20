@@ -971,15 +971,19 @@ function vMore() {
 function plantCard(p) {
   const own = plantOwned(p), d = plantDue(p), c = p.care || {};
   const care = [['Światło', c.light], ['Wilgotność', c.hum], ['Temperatura', c.temp], ['Gleba', c.soil], ['Przesadzanie', c.repot]].filter(x => x[1]);
-  const tox = c.toxic === 'tak' ? '<span class="warn" style="font-weight:800">⚠ Trująca dla psów i kotów' + (c.toxNote ? ' - ' + esc(c.toxNote) : '') + '</span>' : c.toxic === 'nie' ? '<span class="muted">Bezpieczna dla psów i kotów</span>' : '';
+  const tox = c.toxic === 'tak' ? '<details><summary class="warn" style="font-weight:800;cursor:pointer">⚠ Trująca dla psów i kotów</summary>' + (c.toxNote ? '<div class="muted" style="margin-top:6px">' + esc(c.toxNote) + '</div>' : '<div class="muted" style="margin-top:6px">Brak szczegółów - sprawdź u weterynarza.</div>') + '</details>' : c.toxic === 'nie' ? '<span class="muted">Bezpieczna dla psów i kotów</span>' : '';
   return '<div class="card">' + (p.img ? '<img class="thumb" src="' + p.img + '" alt="">' : '') +
     '<div class="row" style="margin-top:' + (p.img ? 12 : 0) + 'px"><span class="ico sm c-green">' + ic('leaf') + '</span><div class="grow"><h3>' + esc(p.name) + '</h3>' +
     (own ? '<div>' + dueLabel(d.water, 'Podlewanie') + (p.fertDays ? ' · ' + dueLabel(d.fert, 'Nawożenie') : '') + '</div>' + (p.spot ? '<div class="muted">📍 ' + esc(p.spot) + '</div>' : '') : '<div class="muted">Na liście zakupów 🛒</div>') +
     '</div></div>' + (tox ? '<div style="margin-top:8px">' + tox + '</div>' : '') +
     (p.note ? '<div class="muted" style="margin-top:8px">' + esc(p.note) + '</div>' : '') +
     (care.length ? '<details style="margin-top:8px"><summary class="muted" style="font-weight:800">Karta pielęgnacji</summary>' + care.map(x => '<div style="margin-top:4px"><b>' + x[0] + ':</b> ' + esc(x[1]) + '</div>').join('') + '</details>' : '') +
-    '<div class="btns">' + (own ? '<button class="btn sm" data-act="plantWater" data-id="' + p.id + '">Podlane</button>' + (p.fertDays ? '<button class="btn sm ghost" data-act="plantFert" data-id="' + p.id + '">Nawiezione</button>' : '') : '<button class="btn sm" data-act="plantOwn" data-id="' + p.id + '">Mam ją</button>') +
+    '<div class="btns">' + (own ? '<button class="btn sm' + (d.water <= 0 ? '' : ' ghost') + '" data-act="plantWater" data-id="' + p.id + '">Podlane</button>' + (p.fertDays ? '<button class="btn sm' + (d.fert <= 0 ? '' : ' ghost') + '" data-act="plantFert" data-id="' + p.id + '">Nawiezione</button>' : '') : '<button class="btn sm" data-act="plantOwn" data-id="' + p.id + '">Mam ją</button>') +
     '<button class="btn sm ghost" data-act="editPlant" data-id="' + p.id + '">Edytuj</button></div></div>';
+}
+function roomBtns(list) {
+  const due = list.map(p => ({ p, d: plantDue(p) })), w = due.filter(x => x.d.water <= 0).map(x => x.p.id), f = due.filter(x => x.p.fertDays && x.d.fert <= 0).map(x => x.p.id);
+  return (w.length ? '<button class="btn sm" data-act="plantWaterAll" data-ids="' + w.join(',') + '">Podlej</button>' : '') + (f.length ? '<button class="btn sm" style="margin-left:6px" data-act="plantFertAll" data-ids="' + f.join(',') + '">Nawieź</button>' : '');
 }
 function vPlants() {
   const own = S.plants.filter(plantOwned), wish = S.plants.filter(p => !plantOwned(p));
@@ -998,7 +1002,7 @@ function vPlants() {
   const rooms = {}; own.forEach(p => { (rooms[p.room || 'Bez pokoju'] = rooms[p.room || 'Bez pokoju'] || []).push(p); });
   const names = Object.keys(rooms).sort((a, b) => (a === 'Bez pokoju') - (b === 'Bez pokoju') || (ROOMS.indexOf(a) < 0 ? 99 : ROOMS.indexOf(a)) - (ROOMS.indexOf(b) < 0 ? 99 : ROOMS.indexOf(b)) || a.localeCompare(b, 'pl'));
   names.forEach(n => {
-    html += '<div class="row" style="margin-top:14px"><h2 class="grow" style="margin:0">' + esc(n) + ' <span class="muted" style="font-size:13px">(' + rooms[n].length + ')</span></h2>' + (n !== 'Bez pokoju' ? '<button class="btn sm ghost" data-act="roomWater" data-room="' + esc(n) + '">Podlej pokój</button>' : '') + '</div>' + rooms[n].map(plantCard).join('');
+    html += '<div class="row" style="margin-top:14px"><h2 class="grow" style="margin:0">' + esc(n) + ' <span class="muted" style="font-size:13px">(' + rooms[n].length + ')</span></h2>' + roomBtns(rooms[n]) + '</div>' + rooms[n].map(plantCard).join('');
   });
   if (wish.length) html += '<h2 style="margin-top:18px">Chcę kupić</h2>' + wish.map(plantCard).join('');
   if (!S.plants.length) html += '<div class="muted card">Brak roślin. Dodaj pierwszą - zrób zdjęcie aparatem i poproś AI o rozpoznanie.</div>';

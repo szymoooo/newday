@@ -136,7 +136,7 @@ function toast(msg) {
   clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.add('hidden'), 2600);
 }
 function busy(on, txt) { $('#busyText').textContent = txt || 'Chwila…'; $('#busy').classList.toggle('hidden', !on); }
-function sheet(html) { $('#panel').innerHTML = html; $('#sheet').classList.remove('hidden'); }
+function sheet(html) { $('#panel').innerHTML = html; $('#sheet').classList.remove('hidden'); try { addMics(); } catch (e) {} }
 function dismissSheet() {
   if (draft && !confirm('Odrzucić niezapisany przepis?')) return;
   draft = null; clearDraft(); closeSheet();
@@ -651,11 +651,27 @@ function dueLabel(n, what) {
   if (n === 0) return `<span class=warn>${what}: dziś</span>`;
   return `<span class=muted>${what}: za ${n} d</span>`;
 }
-function schedulePlant(p) {
-  const d = plantDue(p);
-  const at = days => { const x = new Date(addDays(today(), days) + 'T09:00:00'); return x; };
-  notify('pw' + p.id, 'Podlewanie 🌿', 'Podlej: ' + p.name, at(Math.max(d.water, 0)));
-  if (p.fertDays) notify('pf' + p.id, 'Nawożenie 🌿', 'Nawieź: ' + p.name, at(Math.max(d.fert, 0)));
+const plantOwned = p => p.owned !== false;
+const ROOMS = ['Salon', 'Sypialnia', 'Kuchnia', 'Łazienka', 'Przedpokój', 'Biuro', 'Pokój dziecka', 'Balkon', 'Ogród'];
+const DAYS7 = [['1', 'Pn'], ['2', 'Wt'], ['3', 'Śr'], ['4', 'Cz'], ['5', 'Pt'], ['6', 'So'], ['0', 'Nd']];
+const plantDay = () => (S.settings.plantDay === 'off' ? null : S.settings.plantDay == null ? 6 : +S.settings.plantDay);
+/* jedno cotygodniowe wydarzenie w kalendarzu zamiast osobnych powiadomień dla każdej rośliny */
+function schedulePlant(p) { if (p) { unnotify('pw' + p.id); unnotify('pf' + p.id); } ensurePlantEvent(); }
+function ensurePlantEventForce() { const e = S.events.find(x => x.sys === 'plants'); if (e) e.sig = ''; ensurePlantEvent(); }
+function ensurePlantEvent() {
+  const day = plantDay(), time = S.settings.plantTime || '09:00';
+  const on = day != null && S.plants.some(plantOwned);
+  let e = S.events.find(x => x.sys === 'plants');
+  if (!on) { if (e) { cancelEventNotifs(e.id); S.events = S.events.filter(x => x !== e); save(); } return; }
+  const sig = day + '|' + time;
+  if (e && e.sig === sig) return;
+  if (!e) { e = { id: uid(), sys: 'plants', done: false, kind: 'event', title: 'Rośliny: podlewanie i nawożenie', cat: 'rosliny', date: today(), note: 'Otwórz Rośliny, żeby zobaczyć, co dziś zrobić' }; S.events.push(e); }
+  e.rep = { t: 'w', days: [day] }; e.time = time; e.rems = [0]; e.remind = 0; e.sig = sig;
+  save(); scheduleEvent(e);
+}
+function plantsToDo() {
+  const k = plantDay() === dateObj(today()).getDay() ? 3 : 0;
+  return S.plants.filter(plantOwned).map(p => ({ p, d: plantDue(p) })).filter(x => x.d.water <= k || x.d.fert <= k);
 }
 
 /* =====================  WIDOKI  ===================== */
@@ -721,8 +737,10 @@ Object.assign(ICONS, {
   k_urzedy: "<path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"/><path d=\"M14 2v6h6M16 13H8M16 17H8M10 9H8\"/>",
   k_inne: "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>"
 });
-const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['weterynarz', 'Weterynarz'], ['groomer', 'Fryzjer dla zwierząt'], ['karmienie', 'Karmienie zwierząt'], ['zwierzeta', 'Zwierzęta'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
+ICONS.k_rosliny = ICONS.leaf;
+const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['weterynarz', 'Weterynarz'], ['groomer', 'Fryzjer dla zwierząt'], ['karmienie', 'Karmienie zwierząt'], ['zwierzeta', 'Zwierzęta'], ['rosliny', 'Rośliny'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
 const CAT_RULES = [
+  ['rosliny', 'podlej|podlew|nawoż|nawoz|storczyk|kwiatk', 'roślina|rośliny|rośliną|rosliny|kwiaty'],
   ['leki', '', 'leki|lek|leków|tabletka|tabletki|tabletek|suplement|suplementy|witaminy|witamina|krople|antybiotyk'],
   ['weterynarz', 'weteryn|(?:gabi|haru)\\s+(?:u\\s+)?(?:szczepieni|lekarz|badani|zastrzyk|kontrol)|szczepienie psa|szczepienie kota|odrobacz|kastracj|sterylizacj', ''],
   ['groomer', 'fryzjer (?:dla )?(?:psa|kota|gabi|haru)|(?:gabi|haru)\\s+(?:u\\s+)?(?:fryzjer|groomer|strzyż|strzyz|kąpiel|kapiel)|groomer|strzyżenie psa|strzyzenie psa|trymowanie|kąpiel psa|kapiel psa|obcinanie pazurów', ''],
@@ -803,7 +821,7 @@ const tile = (act, icon, color, label, v) => '<button class="tile" data-act="' +
 function vStart() {
   const td = today(), now = new Date();
   const ev = S.events.filter(e => occursOn(e, td)).map(e => occ(e, td)).sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
-  const pl = S.plants.filter(p => { const d = plantDue(p); return d.water <= 0 || d.fert <= 0; });
+  const pl = S.plants.filter(plantOwned).filter(p => { const d = plantDue(p); return d.water <= 0 || d.fert <= 0; });
   const open = S.shopping.filter(x => !x.done).length;
   const overdue = S.events.filter(e => !e.rep && e.kind === 'task' && !e.done && e.date < td);
   let rows = '', count = 0;
@@ -950,17 +968,41 @@ function vMore() {
 }
 
 /* --- Rośliny --- */
+function plantCard(p) {
+  const own = plantOwned(p), d = plantDue(p), c = p.care || {};
+  const care = [['Światło', c.light], ['Wilgotność', c.hum], ['Temperatura', c.temp], ['Gleba', c.soil], ['Przesadzanie', c.repot]].filter(x => x[1]);
+  const tox = c.toxic === 'tak' ? '<span class="warn" style="font-weight:800">⚠ Trująca dla psów i kotów' + (c.toxNote ? ' - ' + esc(c.toxNote) : '') + '</span>' : c.toxic === 'nie' ? '<span class="muted">Bezpieczna dla psów i kotów</span>' : '';
+  return '<div class="card">' + (p.img ? '<img class="thumb" src="' + p.img + '" alt="">' : '') +
+    '<div class="row" style="margin-top:' + (p.img ? 12 : 0) + 'px"><span class="ico sm c-green">' + ic('leaf') + '</span><div class="grow"><h3>' + esc(p.name) + '</h3>' +
+    (own ? '<div>' + dueLabel(d.water, 'Podlewanie') + (p.fertDays ? ' · ' + dueLabel(d.fert, 'Nawożenie') : '') + '</div>' + (p.spot ? '<div class="muted">📍 ' + esc(p.spot) + '</div>' : '') : '<div class="muted">Na liście zakupów 🛒</div>') +
+    '</div></div>' + (tox ? '<div style="margin-top:8px">' + tox + '</div>' : '') +
+    (p.note ? '<div class="muted" style="margin-top:8px">' + esc(p.note) + '</div>' : '') +
+    (care.length ? '<details style="margin-top:8px"><summary class="muted" style="font-weight:800">Karta pielęgnacji</summary>' + care.map(x => '<div style="margin-top:4px"><b>' + x[0] + ':</b> ' + esc(x[1]) + '</div>').join('') + '</details>' : '') +
+    '<div class="btns">' + (own ? '<button class="btn sm" data-act="plantWater" data-id="' + p.id + '">Podlane</button>' + (p.fertDays ? '<button class="btn sm ghost" data-act="plantFert" data-id="' + p.id + '">Nawiezione</button>' : '') : '<button class="btn sm" data-act="plantOwn" data-id="' + p.id + '">Mam ją</button>') +
+    '<button class="btn sm ghost" data-act="editPlant" data-id="' + p.id + '">Edytuj</button></div></div>';
+}
 function vPlants() {
-  const cards = S.plants.map(p => {
-    const d = plantDue(p);
-    return '<div class="card">' + (p.img ? '<img class="thumb" src="' + p.img + '" alt="">' : '') +
-      '<div class="row" style="margin-top:' + (p.img ? 12 : 0) + 'px"><span class="ico sm c-green">' + ic('leaf') + '</span><div class="grow"><h3>' + esc(p.name) + '</h3><div>' + dueLabel(d.water, 'Podlewanie') + (p.fertDays ? ' · ' + dueLabel(d.fert, 'Nawożenie') : '') + '</div></div></div>' +
-      (p.note ? '<div class="muted" style="margin-top:8px">' + esc(p.note) + '</div>' : '') +
-      '<div class="btns"><button class="btn sm" data-act="plantWater" data-id="' + p.id + '">Podlane</button>' +
-      (p.fertDays ? '<button class="btn sm ghost" data-act="plantFert" data-id="' + p.id + '">Nawiezione</button>' : '') +
-      '<button class="btn sm ghost" data-act="editPlant" data-id="' + p.id + '">Edytuj</button></div></div>';
-  }).join('') || '<div class="muted card">Brak roślin. Dodaj pierwszą - możesz zrobić zdjęcie i poprosić AI o rozpoznanie.</div>';
-  return hdr('Rośliny', true, '<button class="btn sm" data-act="newPlant">+ Roślina</button>') + cards;
+  const own = S.plants.filter(plantOwned), wish = S.plants.filter(p => !plantOwned(p));
+  const todo = plantsToDo(), k = plantDay() === dateObj(today()).getDay() ? 3 : 0;
+  const wIds = todo.filter(x => x.d.water <= k).map(x => x.p.id), fIds = todo.filter(x => x.p.fertDays && x.d.fert <= k).map(x => x.p.id);
+  let html = hdr('Rośliny', true, '<button class="btn sm" data-act="newPlant">+ Roślina</button>');
+  if (own.length) {
+    const day = plantDay();
+    html += '<div class="card"><h3>Podlewanie zbiorcze</h3><div class="muted" style="margin:4px 0 8px">Jedno przypomnienie w tygodniu w Kalendarzu, a tu lista wszystkich roślin do zrobienia.</div>' +
+      '<div class="rbar" style="padding:4px 2px">' + DAYS7.map(d => '<button class="rf' + (day != null && +d[0] === day ? ' sel' : '') + '" data-act="plantDaySet" data-d="' + d[0] + '" style="padding-left:13px">' + d[1] + '</button>').join('') + '<button class="rf' + (day == null ? ' sel' : '') + '" data-act="plantDaySet" data-d="off" style="padding-left:13px">Wył.</button></div>' +
+      (day != null ? '<label>Godzina przypomnienia</label><input id="pTime" type="time" value="' + esc(S.settings.plantTime || '09:00') + '" data-act="plantTimeSet">' : '') + '</div>';
+    html += '<div class="card"><h3>' + (todo.length ? 'Do zrobienia' : 'Wszystko zrobione 🌿') + '</h3>' +
+      todo.map(x => '<div class="prow"><div class="grow"><div class="t">' + esc(x.p.name) + '</div><div class="muted">' + [x.d.water <= k ? 'podlać' : '', x.p.fertDays && x.d.fert <= k ? 'nawieźć' : ''].filter(Boolean).join(' i ') + (x.p.room ? ' · ' + esc(x.p.room) : '') + '</div></div></div>').join('') +
+      (todo.length ? '<div class="btns">' + (wIds.length ? '<button class="btn sm" data-act="plantWaterAll" data-ids="' + wIds.join(',') + '">Podlej wszystkie (' + wIds.length + ')</button>' : '') + (fIds.length ? '<button class="btn sm ghost" data-act="plantFertAll" data-ids="' + fIds.join(',') + '">Nawieź wszystkie (' + fIds.length + ')</button>' : '') + '</div>' : '') + '</div>';
+  }
+  const rooms = {}; own.forEach(p => { (rooms[p.room || 'Bez pokoju'] = rooms[p.room || 'Bez pokoju'] || []).push(p); });
+  const names = Object.keys(rooms).sort((a, b) => (a === 'Bez pokoju') - (b === 'Bez pokoju') || (ROOMS.indexOf(a) < 0 ? 99 : ROOMS.indexOf(a)) - (ROOMS.indexOf(b) < 0 ? 99 : ROOMS.indexOf(b)) || a.localeCompare(b, 'pl'));
+  names.forEach(n => {
+    html += '<div class="row" style="margin-top:14px"><h2 class="grow" style="margin:0">' + esc(n) + ' <span class="muted" style="font-size:13px">(' + rooms[n].length + ')</span></h2>' + (n !== 'Bez pokoju' ? '<button class="btn sm ghost" data-act="roomWater" data-room="' + esc(n) + '">Podlej pokój</button>' : '') + '</div>' + rooms[n].map(plantCard).join('');
+  });
+  if (wish.length) html += '<h2 style="margin-top:18px">Chcę kupić</h2>' + wish.map(plantCard).join('');
+  if (!S.plants.length) html += '<div class="muted card">Brak roślin. Dodaj pierwszą - zrób zdjęcie aparatem i poproś AI o rozpoznanie.</div>';
+  return html;
 }
 
 /* --- Kalendarz --- */
@@ -1070,7 +1112,33 @@ async function webSearch(q) {
   if (!out.length) throw new Error('brak wyników');
   return out.join('\n');
 }
-let micOn = false;
+let micOn = false, micBtnActive = null;
+async function dictateInto(ta, b) {
+  const SR = micPlugin();
+  if (!SR) { toast('Dyktowanie: użyj ikony mikrofonu na klawiaturze telefonu'); if (ta) ta.focus(); return; }
+  try {
+    if (micOn) { micOn = false; if (micBtnActive) micBtnActive.classList.remove('rec'); await SR.stop(); return; }
+    const av = await SR.available(); if (!av.available) throw new Error('niedostępne');
+    const pm = await SR.requestPermissions(); if (pm.speechRecognition && pm.speechRecognition !== 'granted') { toast('Zezwól aplikacji na użycie mikrofonu'); return; }
+    micOn = true; micBtnActive = b; b.classList.add('rec'); const base = ta.value ? ta.value.trim() + ' ' : '';
+    await SR.removeAllListeners();
+    await SR.addListener('partialResults', d => { if (d.matches && d.matches[0]) { ta.value = base + d.matches[0]; ta.dispatchEvent(new Event('input', { bubbles: true })); } });
+    await SR.addListener('listeningState', d => { if (d.status === 'stopped') { micOn = false; if (micBtnActive) micBtnActive.classList.remove('rec'); } });
+    await SR.start({ language: 'pl-PL', partialResults: true, popup: false });
+  } catch (e) { micOn = false; if (b) b.classList.remove('rec'); toast('Dyktowanie niedostępne - użyj mikrofonu na klawiaturze'); }
+}
+/* mały mikrofon przy każdym polu tekstowym w oknach (odpowiedź głosem zamiast pisania) */
+function addMics() {
+  document.querySelectorAll('#panel input, #panel textarea').forEach(el => {
+    if (el.closest('.mic-wrap')) return;
+    const t = (el.getAttribute('type') || 'text').toLowerCase();
+    if (el.tagName === 'INPUT' && !['text', 'search'].includes(t)) return;
+    if (el.inputMode === 'numeric' || el.hidden) return;
+    const w = document.createElement('div'); w.className = 'mic-wrap';
+    el.parentNode.insertBefore(w, el); w.appendChild(el);
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'micbtn'; b.setAttribute('aria-label', 'Dyktuj'); b.dataset.act = 'fieldMic'; b.innerHTML = ic('mic', 20, 2.2); w.appendChild(b);
+  });
+}
 function micPlugin() { const P = window.Capacitor && window.Capacitor.Plugins; return P && P.SpeechRecognition; }
 
 function parseAssistant(out) {
@@ -1604,16 +1672,34 @@ function saveDraftRecipe() {
 /* =====================  EDYTORY: roślina / wydarzenie / notatka / link  ===================== */
 let plantDraftImg = '';
 function openPlantEditor(p) {
-  p = p || {}; plantDraftImg = p.img || '';
+  p = p || {}; plantDraftImg = p.img || ''; const c = p.care || {}, own = plantOwned(p);
   sheet(`<h1 style="font-size:22px">${p.id ? 'Edytuj roślinę' : 'Nowa roślina'}</h1>
     <div id="pImg">${plantDraftImg ? `<img class="thumb" src="${plantDraftImg}" alt="">` : ''}</div>
     <div class="btns"><button class="btn sm ghost" data-act="plantCam">📷 Aparat</button><button class="btn sm ghost" data-act="plantPhoto">🖼 Z galerii</button><button class="btn sm ghost" data-act="plantAI">🤖 Rozpoznaj (AI)</button></div>
     <input type="hidden" id="pId" value="${p.id || ''}">
     <label>Nazwa</label><input id="pName" value="${esc(p.name || '')}">
-    <div class="cols2"><div><label>Podlewanie co (dni)</label><input id="pWater" inputmode="numeric" placeholder="7" value="${p.waterDays || ''}"></div>
-    <div><label>Nawożenie co (dni)</label><input id="pFert" inputmode="numeric" placeholder="30" value="${p.fertDays == null ? '' : p.fertDays}"></div></div>
+    <label>Czy masz tę roślinę w domu?</label><input type="hidden" id="pOwned" value="${own ? '1' : '0'}">
+    <div class="seg" id="pOwnSeg"><button type="button" class="${own ? 'on' : ''}" data-act="plantOwned" data-o="1">Mam ją</button><button type="button" class="${own ? '' : 'on'}" data-act="plantOwned" data-o="0">Chcę kupić</button></div>
+    <div id="pOwnBox" class="${own ? '' : 'hidden'}">
+      <label>Pokój <span class="muted">(wybierz, wpisz lub podyktuj)</span></label>
+      <div class="rbar" style="padding:2px">${ROOMS.map(r => `<button type="button" class="rf" style="padding-left:13px" data-act="pickRoom" data-r="${r}">${r}</button>`).join('')}</div>
+      <input id="pRoom" value="${esc(p.room || '')}" placeholder="np. Sypialnia">
+      <label>Miejsce w pokoju</label><input id="pSpot" value="${esc(p.spot || '')}" placeholder="np. parapet, regał przy oknie">
+      <div class="cols2"><div><label>Podlewanie co (dni)</label><input id="pWater" inputmode="numeric" placeholder="7" value="${p.waterDays || ''}"></div>
+      <div><label>Nawożenie co (dni)</label><input id="pFert" inputmode="numeric" placeholder="30" value="${p.fertDays == null ? '' : p.fertDays}"></div></div>
+      <label>Karta pielęgnacji</label>
+      <div class="btns"><button type="button" class="btn sm ghost" data-act="plantAI" data-care="1">🤖 Uzupełnij kartę (AI)</button></div>
+      <label>Światło</label><input id="pLight" value="${esc(c.light || '')}">
+      <label>Wilgotność</label><input id="pHum" value="${esc(c.hum || '')}">
+      <label>Temperatura</label><input id="pTemp" value="${esc(c.temp || '')}">
+      <label>Gleba</label><input id="pSoil" value="${esc(c.soil || '')}">
+      <label>Przesadzanie</label><input id="pRepot" value="${esc(c.repot || '')}">
+    </div>
+    <label>Trująca dla psów i kotów?</label><select id="pToxic"><option value="">nie wiem</option><option value="tak" ${c.toxic === 'tak' ? 'selected' : ''}>tak, trująca</option><option value="nie" ${c.toxic === 'nie' ? 'selected' : ''}>nie, bezpieczna</option></select>
+    <input id="pToxNote" value="${esc(c.toxNote || '')}" placeholder="uwagi, np. szkodliwy sok">
     <label>Notatka</label><textarea id="pNote" style="min-height:70px">${esc(p.note || '')}</textarea>
     <div class="btns foot"><button class="btn" data-act="savePlant">Zapisz</button>${p.id ? `<button class="btn red" data-act="delPlant" data-id="${p.id}">Usuń</button>` : ''}</div>`);
+  addMics();
 }
 function openEventEditor(e, isNew) {
   e = e || { kind: 'event', date: today() };
@@ -1823,23 +1909,42 @@ const A = {
   editPlant: (d) => openPlantEditor(byId(S.plants, d.id)),
   plantCam: async () => { const i = await pickImage(800, true); if (i) { plantDraftImg = i; $('#pImg').innerHTML = `<img class="thumb" src="${i}" alt="">`; } },
   plantPhoto: async () => { const i = await pickImage(800); if (i) { plantDraftImg = i; $('#pImg').innerHTML = `<img class="thumb" src="${i}" alt="">`; } },
-  plantAI: async () => {
-    if (!plantDraftImg) { toast('Najpierw dodaj zdjęcie'); return; }
+  plantAI: async (d) => {
+    const name0 = val('pName');
+    if (!plantDraftImg && !name0) { toast('Zrób zdjęcie aparatem albo wpisz nazwę'); return; }
     if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
     busy(true, 'Rozpoznaję roślinę…');
     try {
-      const out = await claude({ system: 'Rozpoznajesz rośliny doniczkowe ze zdjęć. Odpowiedz WYŁĄCZNIE JSON-em: {"name":"polska nazwa","water_days":7,"fertilize_days":30,"tip":"krótka wskazówka pielęgnacji"}', messages: [{ role: 'user', content: [imgBlock(plantDraftImg), { type: 'text', text: 'Jaka to roślina? Podaj typowe odstępy podlewania i nawożenia.' }] }], max: 500 });
+      const sys = 'Rozpoznajesz rośliny doniczkowe. Odpowiedz WYŁĄCZNIE JSON-em: {"name":"polska nazwa","water_days":7,"fertilize_days":30,"tip":"krótka wskazówka pielęgnacji","light":"np. jasne, rozproszone","humidity":"np. średnia, zraszać liście","temp":"np. 18-24 °C","soil":"np. przepuszczalna, dla kaktusów","repot":"np. co 2 lata na wiosnę","toxic":"tak|nie|nieznane","toxic_note":"krótko, co szkodzi psom i kotom"}';
+      const content = plantDraftImg ? [imgBlock(plantDraftImg), { type: 'text', text: 'Jaka to roślina? Podaj typowe odstępy podlewania i nawożenia oraz kartę pielęgnacji.' + (name0 ? ' Nazwa: ' + name0 : '') }] : [{ type: 'text', text: 'Roślina: ' + name0 + '. Podaj typowe odstępy podlewania i nawożenia oraz kartę pielęgnacji.' }];
+      const out = await claude({ system: sys, messages: [{ role: 'user', content }], max: 700 });
       const j = extractJSON(out);
       /* AI uzupełnia tylko puste pola - to, co wpisałeś, zostaje */
       const fill = (id, v) => { const el = $(id); if (el && !String(el.value).trim() && v != null && v !== '') el.value = v; };
       fill('#pName', j.name); fill('#pWater', j.water_days); fill('#pFert', j.fertilize_days); fill('#pNote', j.tip);
+      fill('#pLight', j.light); fill('#pHum', j.humidity); fill('#pTemp', j.temp); fill('#pSoil', j.soil); fill('#pRepot', j.repot); fill('#pToxNote', j.toxic_note);
+      const tx = $('#pToxic'); if (tx && !tx.value && (j.toxic === 'tak' || j.toxic === 'nie')) tx.value = j.toxic;
+      if (!d || !d.care) toast('Rozpoznano. Czy masz tę roślinę w domu? Wybierz niżej.');
     } catch (e) { toast('Błąd: ' + e.message); } finally { busy(false); }
   },
+  plantOwned: (d) => {
+    $('#pOwned').value = d.o; $('#pOwnBox').classList.toggle('hidden', d.o !== '1');
+    document.querySelectorAll('#pOwnSeg button').forEach(b => b.classList.toggle('on', b.dataset.o === d.o));
+  },
+  pickRoom: (d) => { $('#pRoom').value = d.r; },
+  plantOwn: (d) => { const p = byId(S.plants, d.id); p.owned = true; p.lastWater = today(); p.lastFert = today(); save(); schedulePlant(p); openPlantEditor(p); },
+  plantWaterAll: (d) => { (d.ids || '').split(',').forEach(id => { const p = byId(S.plants, id); if (p) p.lastWater = today(); }); save(); toast('Podlane 💧'); render(); },
+  plantFertAll: (d) => { (d.ids || '').split(',').forEach(id => { const p = byId(S.plants, id); if (p) p.lastFert = today(); }); save(); toast('Nawiezione 🧪'); render(); },
+  roomWater: (d) => { let n = 0; S.plants.filter(plantOwned).forEach(p => { if ((p.room || '') === d.room) { p.lastWater = today(); n++; } }); save(); toast('Podlane: ' + n + ' 💧'); render(); },
+  plantDaySet: (d) => { S.settings.plantDay = d.d === 'off' ? 'off' : +d.d; save(); ensurePlantEventForce(); render(); },
+  plantTimeSet: () => {},
   savePlant: () => {
     const name = val('pName'); if (!name) { toast('Podaj nazwę'); return; }
     let p = byId(S.plants, val('pId'));
     if (!p) { p = { id: uid(), lastWater: today(), lastFert: today() }; S.plants.push(p); }
     const fv = val('pFert').trim();
+    p.owned = val('pOwned') !== '0'; p.room = val('pRoom'); p.spot = val('pSpot');
+    p.care = { light: val('pLight'), hum: val('pHum'), temp: val('pTemp'), soil: val('pSoil'), repot: val('pRepot'), toxic: val('pToxic'), toxNote: val('pToxNote') };
     p.name = name; p.waterDays = parseInt(val('pWater')) || 7; p.fertDays = fv === '' ? (p.fertDays == null ? 30 : p.fertDays) : (parseInt(fv) || 0); p.note = val('pNote'); p.img = plantDraftImg;
     save(); schedulePlant(p); closeSheet(); if (route.v !== 'plants') go('plants'); else render();
   },
@@ -1854,7 +1959,7 @@ const A = {
     document.querySelectorAll('.catpick').forEach(b => b.classList.toggle('sel', (b.dataset.c || '') === (d.c || '')));
     $('#eCatName').textContent = d.c ? catName(d.c) : 'automatycznie po tytule';
   },
-  editEvent: (d) => openEventEditor(byId(S.events, d.id)),
+  editEvent: (d) => { const e = byId(S.events, d.id); if (e && e.sys === 'plants') go('plants'); else openEventEditor(e); },
   saveEvent: () => {
     const title = val('eTitle'); if (!title) { toast('Podaj tytuł'); return; }
     let e = byId(S.events, val('eId'));
@@ -1883,6 +1988,7 @@ const A = {
 
   /* asystent */
   chatClear: () => { S.chat = []; save(); render(); },
+  fieldMic: (d, el) => { const w = el.closest('.mic-wrap'), ta = w && w.querySelector('input,textarea'); if (ta) dictateInto(ta, el); },
   chatMic: async () => {
     const SR = micPlugin(), ta = $('#chatIn'), b = $('#micBtn');
     if (!SR) { toast('Dyktowanie: użyj ikony mikrofonu na klawiaturze telefonu'); if (ta) ta.focus(); return; }
@@ -1953,6 +2059,7 @@ function init() {
   });
   document.querySelectorAll('.ni').forEach(e => { e.innerHTML = ic(e.dataset.i, +e.dataset.s || 26); });
   document.addEventListener('change', ev => {
+    if (ev.target.id === 'pTime' && ev.target.value) { S.settings.plantTime = ev.target.value; save(); ensurePlantEventForce(); toast('Godzina zapisana'); }
     if (ev.target.id === 'sProv') {
       const p = PROVIDERS[ev.target.value];
       $('#sModel').value = p.model; $('#sBase').value = p.base || '';
@@ -1968,7 +2075,8 @@ function init() {
   render();
   if (window.__shared) window.onShared();
   // przypomnienia o roślinach po starcie (np. po restarcie telefonu)
-  S.plants.forEach(schedulePlant);
+  S.plants.forEach(p => { unnotify('pw' + p.id); unnotify('pf' + p.id); });
+  ensurePlantEvent();
   if (S.settings.notifV !== 3) { S.events.filter(e => !e.done).forEach(e => scheduleEvent(e)); S.settings.notifV = 3; save(); }
   else S.events.filter(e => e.rep).forEach(e => scheduleEvent(e));
   try { window.Capacitor.Plugins.App.addListener('resume', () => { S.events.filter(e => e.rep).forEach(e => scheduleEvent(e)); render(); }); } catch (e) {}

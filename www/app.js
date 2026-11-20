@@ -210,9 +210,9 @@ function fileToDataUrl(file, max, q) {
     } catch (e) { viaReader(); }
   });
 }
-function pickImage(max) {
+function pickImage(max, cam) {
   return new Promise(res => {
-    const inp = $('#filePick');
+    const inp = $(cam ? '#fileCam' : '#filePick');
     inp.value = '';
     inp.onchange = async () => {
       const f = inp.files[0]; if (!f) { res(null); return; }
@@ -1286,7 +1286,7 @@ function openAdd(prefill) {
     <p class="muted">Wklej link, przepis, notatkę, listę zakupów… albo dodaj zdjęcie. AI rozpozna, co to jest, i zapisze we właściwym miejscu.</p>
     <textarea id="addText" placeholder="Wklej tutaj…">${esc(prefill || '')}</textarea>
     <div id="addImgBox"></div>
-    <div class="btns foot"><button class="btn ghost" data-act="addPhoto">📷 Zdjęcie</button><button class="btn" data-act="addGo">Rozpoznaj i zapisz</button></div>`);
+    <div class="btns foot"><button class="btn ghost" data-act="addCam">📷 Aparat</button><button class="btn ghost" data-act="addPhoto">🖼 Galeria</button><button class="btn" data-act="addGo">Rozpoznaj i zapisz</button></div>`);
   if (prefill) setTimeout(() => handleAdd(prefill, null), 100);
 }
 
@@ -1607,11 +1607,11 @@ function openPlantEditor(p) {
   p = p || {}; plantDraftImg = p.img || '';
   sheet(`<h1 style="font-size:22px">${p.id ? 'Edytuj roślinę' : 'Nowa roślina'}</h1>
     <div id="pImg">${plantDraftImg ? `<img class="thumb" src="${plantDraftImg}" alt="">` : ''}</div>
-    <div class="btns"><button class="btn sm ghost" data-act="plantPhoto">📷 Zdjęcie</button><button class="btn sm ghost" data-act="plantAI">🤖 Rozpoznaj (AI)</button></div>
+    <div class="btns"><button class="btn sm ghost" data-act="plantCam">📷 Aparat</button><button class="btn sm ghost" data-act="plantPhoto">🖼 Z galerii</button><button class="btn sm ghost" data-act="plantAI">🤖 Rozpoznaj (AI)</button></div>
     <input type="hidden" id="pId" value="${p.id || ''}">
     <label>Nazwa</label><input id="pName" value="${esc(p.name || '')}">
-    <div class="cols2"><div><label>Podlewanie co (dni)</label><input id="pWater" inputmode="numeric" value="${p.waterDays || 7}"></div>
-    <div><label>Nawożenie co (dni)</label><input id="pFert" inputmode="numeric" placeholder="0 = brak" value="${p.fertDays == null ? 30 : p.fertDays}"></div></div>
+    <div class="cols2"><div><label>Podlewanie co (dni)</label><input id="pWater" inputmode="numeric" placeholder="7" value="${p.waterDays || ''}"></div>
+    <div><label>Nawożenie co (dni)</label><input id="pFert" inputmode="numeric" placeholder="30" value="${p.fertDays == null ? '' : p.fertDays}"></div></div>
     <label>Notatka</label><textarea id="pNote" style="min-height:70px">${esc(p.note || '')}</textarea>
     <div class="btns foot"><button class="btn" data-act="savePlant">Zapisz</button>${p.id ? `<button class="btn red" data-act="delPlant" data-id="${p.id}">Usuń</button>` : ''}</div>`);
 }
@@ -1727,6 +1727,10 @@ const A = {
   plantsGo: () => go('plants'),
   add: () => openAdd(''),
   closeSheet: () => { draft = null; clearDraft(); closeSheet(); },
+  addCam: async () => {
+    const img = await pickImage(1200, true); if (!img) return;
+    pendingImg = img; $('#addImgBox').innerHTML = `<img class="thumb" src="${img}" alt="" style="height:140px;margin-bottom:8px">`;
+  },
   addPhoto: async () => {
     const img = await pickImage(1200); if (!img) return;
     pendingImg = img; $('#addImgBox').innerHTML = `<img class="thumb" src="${img}" alt="" style="height:140px;margin-bottom:8px">`;
@@ -1817,6 +1821,7 @@ const A = {
   /* rośliny */
   newPlant: () => openPlantEditor(),
   editPlant: (d) => openPlantEditor(byId(S.plants, d.id)),
+  plantCam: async () => { const i = await pickImage(800, true); if (i) { plantDraftImg = i; $('#pImg').innerHTML = `<img class="thumb" src="${i}" alt="">`; } },
   plantPhoto: async () => { const i = await pickImage(800); if (i) { plantDraftImg = i; $('#pImg').innerHTML = `<img class="thumb" src="${i}" alt="">`; } },
   plantAI: async () => {
     if (!plantDraftImg) { toast('Najpierw dodaj zdjęcie'); return; }
@@ -1825,14 +1830,17 @@ const A = {
     try {
       const out = await claude({ system: 'Rozpoznajesz rośliny doniczkowe ze zdjęć. Odpowiedz WYŁĄCZNIE JSON-em: {"name":"polska nazwa","water_days":7,"fertilize_days":30,"tip":"krótka wskazówka pielęgnacji"}', messages: [{ role: 'user', content: [imgBlock(plantDraftImg), { type: 'text', text: 'Jaka to roślina? Podaj typowe odstępy podlewania i nawożenia.' }] }], max: 500 });
       const j = extractJSON(out);
-      $('#pName').value = j.name || ''; $('#pWater').value = j.water_days || 7; $('#pFert').value = j.fertilize_days == null ? 30 : j.fertilize_days; $('#pNote').value = j.tip || '';
+      /* AI uzupełnia tylko puste pola - to, co wpisałeś, zostaje */
+      const fill = (id, v) => { const el = $(id); if (el && !String(el.value).trim() && v != null && v !== '') el.value = v; };
+      fill('#pName', j.name); fill('#pWater', j.water_days); fill('#pFert', j.fertilize_days); fill('#pNote', j.tip);
     } catch (e) { toast('Błąd: ' + e.message); } finally { busy(false); }
   },
   savePlant: () => {
     const name = val('pName'); if (!name) { toast('Podaj nazwę'); return; }
     let p = byId(S.plants, val('pId'));
     if (!p) { p = { id: uid(), lastWater: today(), lastFert: today() }; S.plants.push(p); }
-    p.name = name; p.waterDays = parseInt(val('pWater')) || 7; p.fertDays = parseInt(val('pFert')) || 0; p.note = val('pNote'); p.img = plantDraftImg;
+    const fv = val('pFert').trim();
+    p.name = name; p.waterDays = parseInt(val('pWater')) || 7; p.fertDays = fv === '' ? (p.fertDays == null ? 30 : p.fertDays) : (parseInt(fv) || 0); p.note = val('pNote'); p.img = plantDraftImg;
     save(); schedulePlant(p); closeSheet(); if (route.v !== 'plants') go('plants'); else render();
   },
   delPlant: (d) => { if (confirm('Usunąć roślinę?')) { unnotify('pw' + d.id); unnotify('pf' + d.id); S.plants = S.plants.filter(p => p.id !== d.id); save(); closeSheet(); render(); } },

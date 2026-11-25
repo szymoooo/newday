@@ -10,7 +10,7 @@ const APP_DATE = (typeof window !== 'undefined' && window.APP_DATE) || '';
 const APP_CFG = (typeof window !== 'undefined' && window.APP_CONFIG) || {};
 const DEF = {
   settings: { name: 'Ania', provider: 'anthropic', apiKey: '', model: 'claude-sonnet-5-5', baseUrl: '' },
-  links: [], recipes: [], shopping: [], plants: [], events: [], notes: [], chat: []
+  links: [], recipes: [], shopping: [], expenses: [], budget: { limit: 0, cats: {} }, plants: [], events: [], notes: [], chat: []
 };
 let S = null;
 let route = { v: 'start' };
@@ -719,6 +719,18 @@ Object.assign(ICONS, {
   r_przetwory: "<path d=\"M7 8h10v12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2z\"/><path d=\"M8 3h8v5H8z\"/>",
   r_grill: "<path d=\"M12 22c4 0 7-3 7-7 0-3-2-5-3-7-1 2-2 3-3 3 0-4-1-7-4-9 0 5-4 7-4 12 0 4 3 8 7 8z\"/>",
   r_bezglutenu: "<path d=\"M12 22V9\"/><path d=\"M12 9c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 9c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 14c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 14c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M12 19c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4z\"/><path d=\"M12 19c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z\"/><path d=\"M3 3l18 18\"/>",
+  p_warzywa: "<path d=\"M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7z\"/><path d=\"M8.64 14l-2.05-2.04M15.34 15l-2.46-2.46\"/><path d=\"M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z\"/><path d=\"M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z\"/>",
+  p_owoce: "<path d=\"M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06z\"/><path d=\"M10 2c1 .5 2 2 2 5\"/>",
+  p_nabial: "<path d=\"M8 2h8\"/><path d=\"M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2\"/><path d=\"M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0\"/>",
+  p_sery: "<path d=\"M3 8l18-4v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/><circle cx=\"9\" cy=\"13\" r=\"1.2\"/><circle cx=\"15\" cy=\"11\" r=\"1\"/>",
+  p_wedliny: "<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"9\" cy=\"10\" r=\"1\"/><circle cx=\"14.5\" cy=\"9\" r=\"1\"/><circle cx=\"15\" cy=\"14.5\" r=\"1\"/><circle cx=\"9\" cy=\"15\" r=\"1\"/>",
+  p_suche: "<path d=\"M6 8h12l-1 13H7z\"/><path d=\"M9 8V5h6v3\"/><path d=\"M9 13h6\"/>",
+  p_mrozonki: "<path d=\"M2 12h20M12 2v20M20 16l-4-4 4-4M4 8l4 4-4 4M16 4l-4 4-4-4M8 20l4-4 4 4\"/>",
+  p_slodycze: "<path d=\"M12 2a10 10 0 1 0 10 10 4 4 0 0 1-5-5 4 4 0 0 1-5-5\"/><path d=\"M8.5 8.5v.01M16 15.5v.01M12 12v.01M11 17v.01M7 14v.01\"/>",
+  p_chemia: "<path d=\"M8 3h5v3H8z\"/><path d=\"M6 9h9v12a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1z\"/><path d=\"M15 4h3M15 7h4\"/>",
+  p_higiena: "<path d=\"M12 2.7s7 7.1 7 12a7 7 0 0 1-14 0c0-4.9 7-12 7-12z\"/>",
+  wallet: "<path d=\"M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1\"/><path d=\"M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4\"/>",
+  scan: "<path d=\"M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2\"/><path d=\"M7 12h10\"/>",
   k_weterynarz: "<path d=\"M11 2v2\"/><path d=\"M5 2v2\"/><path d=\"M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1\"/><path d=\"M8 15a6 6 0 0 0 12 0v-3\"/><circle cx=\"20\" cy=\"10\" r=\"2\"/>",
   k_groomer: "<circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><path d=\"M20 4 8.12 15.88\"/><path d=\"M14.47 14.48 20 20\"/><path d=\"M8.12 8.12 12 12\"/>",
   k_karmienie: "<path d=\"M3 12h18l-1.6 6.4a2 2 0 0 1-1.94 1.6H6.54a2 2 0 0 1-1.94-1.6z\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.3\"/><circle cx=\"12\" cy=\"6.5\" r=\"1.3\"/><circle cx=\"15.5\" cy=\"8.5\" r=\"1.3\"/>",
@@ -738,6 +750,7 @@ Object.assign(ICONS, {
   k_inne: "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>"
 });
 ICONS.k_rosliny = ICONS.leaf;
+Object.assign(ICONS, { p_pieczywo: ICONS.r_pieczywo, p_mieso: ICONS.r_miesa, p_ryby: ICONS.r_ryby, p_napoje: ICONS.r_napoje, p_zwierzeta: ICONS.k_zwierzeta, p_inne: ICONS.cart });
 const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['weterynarz', 'Weterynarz'], ['groomer', 'Fryzjer dla zwierząt'], ['karmienie', 'Karmienie zwierząt'], ['zwierzeta', 'Zwierzęta'], ['rosliny', 'Rośliny'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
 const CAT_RULES = [
   ['rosliny', 'podlej|podlew|nawoż|nawoz|storczyk|kwiatk', 'roślina|rośliny|rośliną|rosliny|kwiaty'],
@@ -772,6 +785,39 @@ function guessCat(title) {
 const catOf = e => (e && CATS.some(c => c[0] === e.cat) ? e.cat : guessCat(e && e.title));
 const validCat = c => (CATS.some(x => x[0] === c) ? c : '');
 const catName = k => (CATS.find(c => c[0] === k) || ['', 'Inne'])[1];
+/* ---------- kategorie produktów (zakupy i budżet) ---------- */
+const PCATS = [['warzywa', 'Warzywa'], ['owoce', 'Owoce'], ['pieczywo', 'Pieczywo'], ['nabial', 'Nabiał'], ['sery', 'Sery'], ['mieso', 'Mięso'], ['wedliny', 'Wędliny'], ['ryby', 'Ryby'], ['suche', 'Produkty suche'], ['mrozonki', 'Mrożonki'], ['napoje', 'Napoje'], ['slodycze', 'Słodycze i przekąski'], ['chemia', 'Chemia domowa'], ['higiena', 'Higiena'], ['zwierzeta', 'Dla zwierząt'], ['inne', 'Inne']];
+const PCAT_RULES = [
+  ['zwierzeta', 'karma|karmy|dla psa|dla kota|żwirek|zwirek|przysmak dla|gabi|haru|kość dla|kosc dla|puszka dla|chrupki dla|smycz|obroża|obroza|zabawka dla psa'],
+  ['sery', 'ser |sera|sery|serek|serka|mozzarell|parmezan|feta|gouda|edam|cheddar|ricott|mascarpone|camembert|brie|oscypek|twaróg|twarog|halloumi|śmietankowy ser'],
+  ['wedliny', 'szynk|kiełbas|kielbas|kabanos|parówk|parowk|salami|mortadel|boczek|pasztet|polędwic|poledwic|wędlin|wedlin|schab pieczony|baleron|kaszank|chorizo|prosciutto|indyk plastry'],
+  ['chemia', 'proszek do prania|płyn do|plyn do|płyn do naczyń|tabletki do zmywarki|kapsułki do prania|kapsulki do prania|odświeżacz|odswiezacz|domestos|ajax|cif|mydło w płynie|worki na śmieci|worki|gąbk|gabk|ścierk|scierk|folia|papier do pieczenia|ręcznik papierowy|reczniki papierowe|ręczniki papierowe|płyn do szyb|odkamieniacz|zmywarka|sól do zmywarki|chusteczki do|rękawiczki|rekawiczki|świeczk|swieczk|baterie|żarówk|zarowk|pochłaniacz|zmiękczacz|zmiekczacz|silan|lenor|vanish|calgon|odplamiacz|środek czystości|srodek czystosci|szczotk'],
+  ['higiena', 'szampon|odżywka do włosów|odzywka do wlosow|mydło|mydlo|żel pod prysznic|zel pod prysznic|pasta do zębów|pasta do zebow|szczoteczk|dezodorant|papier toaletowy|chusteczki|podpask|tampon|wata|patyczki|płatki kosmet|platki kosmet|krem |balsam|golark|maszynk|pianka do golenia|płyn do kąpieli|plyn do kapieli|nawilżane|nawilzane|pieluch|waciki|plaster|perfum|lakier do włosów|lakier do wlosow|tusz|puder|szminka|zmywacz|płyn micel|plyn micel|nić dentystyczna|nic dentystyczna|płyn do płukania|plyn do plukania'],
+  ['mrozonki', 'mrożon|mrozon|lody|lód|pizza mroż|frytki mroż|hortex|paluszki rybne|pierogi mroż'],
+  ['ryby', 'ryb|łosoś|losos|dorsz|śledź|sledz|tuńczyk|tunczyk|makrel|pstrąg|pstrag|krewetk|karp|mintaj|sandacz|panga|owoce morza|sardynk'],
+  ['mieso', 'mięs|mies|kurczak|pierś|piers|udk|schab|karków|karkow|wieprzow|wołow|wolow|indyk|mielon|żeberk|zeberk|kotlet|stek|łopatk|lopatk|golonk|wątrob|watrob|skrzydełk|skrzydelk|cielęc|cielec|kaczk|królik|krolik'],
+  ['nabial', 'mleko|mleka|masł|masl|śmietan|smietan|jogurt|kefir|maślank|maslank|jaja|jajka|jajko|margaryn|serwatk|skyr|bitą|actimel|danio|puddin|budyń|budyn|twarożek|twarozek|mleczn'],
+  ['pieczywo', 'chleb|bułk|bulk|bagiet|chałk|chalk|rogal|drożdżówk|drozdzowk|tost|pieczyw|precel|ciabatt|pita|tortill|bułeczk|buleczk|grahamk|pączek|paczek'],
+  ['warzywa', 'ziemniak|marchew|marchewk|cebul|czosnek|pomidor|ogórek|ogorek|ogórk|papryk|sałat|salat|szpinak|brokuł|brokul|kalafior|kapust|burak|seler|pietruszk|por |pory|cukini|dyni|rzodkiew|bakłażan|baklazan|kukurydz|fasol|groszek|szczypior|koper|natk|rukol|jarmuż|jarmuz|pieczark|grzyby|brukselk|batat|imbir|rzepa|pomidorki|warzyw|awokado'],
+  ['owoce', 'jabłk|jablk|banan|pomarańcz|pomarancz|cytryn|limonk|gruszk|winogron|truskawk|malin|jagod|borówk|borowk|wiśni|wisni|czereśn|czeresn|brzoskwin|nektaryn|śliwk|sliwk|arbuz|melon|kiwi|ananas|mango|mandarynk|grejpfrut|owoc|morel|porzeczk|agrest|figi|daktyl|rodzynk'],
+  ['napoje', 'woda|wody|sok |soki|soku|napój|napoj|cola|pepsi|fanta|sprite|piwo|wino|wódk|wodk|whisky|herbat|kaw|cappuccino|kakao|lemoniad|oranżad|oranzad|energetyk|tonik|mineralna|izotonik|syrop|kompot|nektar|red bull|prosecco|szampan|drink'],
+  ['slodycze', 'czekolad|baton|ciastk|ciasto|wafel|żelk|zelk|cukierk|lizak|chips|chrupki|paluszk|orzech|orzeszk|popcorn|krakers|herbatnik|lody|batonik|słodycz|slodycz|biszkopt|pralin|snickers|mars|oreo|prince|ptasie mleczko|krówk|krowk|marcepan|chałwa|chalwa|miód|miod|nutell|dżem|dzem|powidł|powidl|galaretk|budyń'],
+  ['suche', 'mąk|mak |makaron|ryż|ryz|kasz|płatki|platki|cukier|sól|sol |olej|oliwa|ocet|przypraw|pieprz|bułka tart|drożdże|drozdze|proszek do pieczenia|soda|żelatyn|zelatyn|kisiel|zupa|zupka|sos |sosy|ketchup|majonez|musztard|konserw|puszk|passata|koncentrat|mielon|bulion|kostk|wafle ryżowe|musli|granola|nasiona|siemię|siemie|chia|fasola w|ciecierzyc|soczewic|tahini|miodu|cynamon|wanili|kakao w proszku|skrobi|panko|tortilla']
+];
+const pcatName = k => (PCATS.find(c => c[0] === k) || ['inne', 'Inne'])[1];
+const validPcat = k => (PCATS.some(c => c[0] === k) ? k : '');
+function guessPcat(text) {
+  const t = ' ' + String(text || '').toLowerCase().trim();
+  for (const [k, rx] of PCAT_RULES) if (new RegExp('(?<![\\p{L}])(?:' + rx + ')', 'u').test(t)) return k;
+  return 'inne';
+}
+const pcatOf = x => validPcat(x.cat) || guessPcat(x.text || x.name);
+const pcatTag = k => '<span class="rtag pc-' + k + '">' + ic('p_' + k, 13, 2.2) + esc(pcatName(k)) + '</span>';
+/* pieniądze */
+const money = n => (Math.round((+n || 0) * 100) / 100).toFixed(2).replace('.', ',') + ' zł';
+const parsePrice = v => { const n = parseFloat(String(v == null ? '' : v).replace(/\s/g, '').replace(',', '.').replace(/[^0-9.\-]/g, '')); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+const normName = t => String(t || '').toLowerCase().replace(/[0-9.,]+\s*(g|kg|ml|l|szt|x)\b/g, ' ').replace(/[^a-ząćęłńóśźż ]/g, ' ').replace(/\s+/g, ' ').trim();
+
 /* ---------- kategorie przepisów ---------- */
 const RCATS = [['sniadania', 'Śniadania'], ['obiady', 'Obiady'], ['kolacje', 'Kolacje'], ['zupy', 'Zupy'], ['miesa', 'Mięsa'], ['ryby', 'Ryby'], ['makarony', 'Makarony'], ['salatki', 'Sałatki'], ['przekaski', 'Przekąski'], ['ciasta', 'Ciasta'], ['desery', 'Desery'], ['pieczywo', 'Pieczywo'], ['napoje', 'Napoje'], ['wege', 'Wegetariańskie'], ['swieta', 'Święta'], ['przetwory', 'Sosy i przetwory'], ['grill', 'Grill'], ['bezglutenu', 'Bez glutenu']];
 const RCAT_RULES = [
@@ -950,21 +996,91 @@ function vRecipe(id) {
 function vShopping() {
   const items = S.shopping;
   const todo = items.filter(x => !x.done), done = items.filter(x => x.done);
-  const row = x => '<div class="prow"><button class="check ' + (x.done ? 'on' : '') + '" data-act="shopTick" data-id="' + x.id + '" aria-label="Kupione">' + (x.done ? ic('check', 18, 3) : '') + '</button>' +
-    '<div class="grow ' + (x.done ? 'done' : '') + '"><div class="t">' + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + '</div>' +
+  const row = (x, show) => '<div class="prow"><button class="check ' + (x.done ? 'on' : '') + '" data-act="shopTick" data-id="' + x.id + '" aria-label="Kupione">' + (x.done ? ic('check', 18, 3) : '') + '</button>' +
+    '<div class="grow ' + (x.done ? 'done' : '') + '" data-act="shopCat" data-id="' + x.id + '"><div class="t">' + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + (show ? '<div style="margin-top:4px">' + pcatTag(pcatOf(x)) + '</div>' : '') + '</div>' +
     '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="shopDel" data-id="' + x.id + '" aria-label="Usuń">' + ic('x', 22, 2) + '</button></div>';
+  const groups = {}; todo.forEach(x => { const k = pcatOf(x); (groups[k] = groups[k] || []).push(x); });
+  const body = PCATS.filter(c => groups[c[0]]).map(c => '<div class="shgrp pc-' + c[0] + '"><span class="ri">' + ic('p_' + c[0], 16, 2.2) + '</span>' + c[1] + ' <span style="opacity:.7">(' + groups[c[0]].length + ')</span></div><div class="card flush" style="margin-top:6px">' + groups[c[0]].map(x => row(x, false)).join('') + '</div>').join('');
   return '<div class="hdr">' + BACK_BTN() + '<div class="grow"><h1>Zakupy</h1><div class="muted" style="margin-top:4px">' + todo.length + ' do kupienia · ' + done.length + ' w koszyku</div></div>' +
     (done.length ? '<button class="ibtn" data-act="shopClear">Usuń kupione</button>' : '') + '</div>' +
     '<div class="row"><label class="search grow" style="margin:0"><input id="newItem" placeholder="Dodaj produkt…" aria-label="Dodaj produkt" data-enter="shopAdd"></label>' +
     '<button class="ibtn round" style="background:var(--acc);color:#fff;width:52px;height:52px;box-shadow:0 6px 16px rgba(200,69,26,.3)" data-act="shopAdd" aria-label="Dodaj">' + ic('plus', 26, 2.4) + '</button></div>' +
-    '<div class="card flush" style="margin-top:16px">' + (todo.map(row).join('') || '<div class="muted" style="padding:16px 0">Lista pusta</div>') + '</div>' +
-    (done.length ? '<h2 style="color:var(--mut)">W koszyku</h2><div class="card flush">' + done.map(row).join('') + '</div>' : '');
+    (body || '<div class="card flush" style="margin-top:16px"><div class="muted" style="padding:16px 0">Lista pusta</div></div>') +
+    (done.length ? '<h2 style="color:var(--mut)">W koszyku</h2><div class="card flush">' + done.map(x => row(x, true)).join('') + '</div>' : '');
+}
+
+/* --- Budżet --- */
+let budMonth = '';
+const monthKey = d => String(d).slice(0, 7);
+const MONTHS = ['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'];
+const monthLabel = k => MONTHS[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
+const shiftMonth = (k, n) => { const d = new Date(+k.slice(0, 4), +k.slice(5, 7) - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); };
+const expItems = e => (e.items || []).map(it => ({ price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), name: it.name }));
+const expTotal = e => expItems(e).reduce((a, it) => a + it.price, 0);
+function vBudget() {
+  if (!budMonth) budMonth = monthKey(today());
+  const B = S.budget || (S.budget = { limit: 0, cats: {} });
+  const list = (S.expenses || []).filter(e => monthKey(e.date) === budMonth).sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.ts || 0) - (a.ts || 0));
+  const byCat = {}; let spent = 0;
+  list.forEach(e => expItems(e).forEach(it => { byCat[it.cat] = (byCat[it.cat] || 0) + it.price; spent += it.price; }));
+  const lim = +B.limit || 0, pct = lim ? Math.min(100, spent / lim * 100) : 0, over = lim && spent > lim;
+  let html = hdr('Budżet') +
+    '<div class="row" style="justify-content:space-between;margin-bottom:10px"><button class="ibtn round" data-act="budMonth" data-n="-1" aria-label="Poprzedni miesiąc">' + ic('back', 22, 2.2) + '</button><h2 style="margin:0">' + monthLabel(budMonth) + '</h2><button class="ibtn round" data-act="budMonth" data-n="1" aria-label="Następny miesiąc" style="transform:rotate(180deg)">' + ic('back', 22, 2.2) + '</button></div>' +
+    '<div class="card"><div class="muted">Wydano</div><div style="font-size:30px;font-weight:900;margin:2px 0">' + money(spent) + '</div>' +
+    (lim ? '<div class="bar"><i style="width:' + pct + '%;background:' + (over ? '#D4455A' : pct > 80 ? '#E08600' : '#2E8B57') + '"></i></div><div class="' + (over ? 'warn' : 'muted') + '" style="margin-top:6px;font-weight:700">' + (over ? 'Przekroczono o ' + money(spent - lim) : 'Zostało ' + money(lim - spent)) + ' z ' + money(lim) + '</div>' : '<div class="muted">Nie ustawiono limitu miesięcznego</div>') +
+    '<div class="btns"><button class="btn sm ghost" data-act="budLimit">Ustaw limity</button></div></div>' +
+    '<div class="btns" style="margin:12px 0"><button class="btn" data-act="scanCam">📷 Skanuj paragon</button><button class="btn ghost" data-act="scanGal">🖼 Z galerii</button><button class="btn ghost" data-act="expNew">+ Wydatek</button></div>';
+  const cats = PCATS.filter(c => byCat[c[0]] || +(B.cats || {})[c[0]]);
+  if (cats.length) html += '<h2>Kategorie</h2><div class="card">' + cats.map(c => {
+    const v = byCat[c[0]] || 0, cl = +(B.cats || {})[c[0]] || 0, pc = cl ? Math.min(100, v / cl * 100) : (spent ? v / spent * 100 : 0);
+    return '<div style="margin:10px 0"><div class="row"><span class="ri pc-' + c[0] + '" style="display:inline-flex;width:30px;height:30px;border-radius:50%;align-items:center;justify-content:center;background:var(--rb);color:var(--rf)">' + ic('p_' + c[0], 16, 2.2) + '</span><div class="grow"><b>' + c[1] + '</b></div><div class="' + (cl && v > cl ? 'warn' : '') + '" style="font-weight:800">' + money(v) + (cl ? ' <span class="muted" style="font-weight:600">/ ' + money(cl) + '</span>' : '') + '</div></div>' +
+      '<div class="bar pc-' + c[0] + '" style="margin-top:6px"><i style="width:' + pc + '%;background:' + (cl && v > cl ? '#D4455A' : 'var(--rf)') + '"></i></div></div>';
+  }).join('') + '</div>';
+  html += '<h2>Wydatki</h2>' + (list.length ? '<div class="card flush">' + list.map(e => '<div class="prow" data-act="expEdit" data-id="' + e.id + '"><div class="grow"><div class="t">' + esc(e.store || e.title || 'Wydatek') + '</div><div class="muted">' + esc(e.date) + ' · ' + (e.items || []).length + ' poz.' + (e.src === 'receipt' ? ' · paragon' : '') + '</div></div><div style="font-weight:800">' + money(expTotal(e)) + '</div></div>').join('') + '</div>' : '<div class="card muted">Brak wydatków w tym miesiącu. Zeskanuj paragon albo dodaj wydatek ręcznie.</div>');
+  return html;
+}
+
+/* ---------- wydatki i skaner paragonów ---------- */
+let expDraft = null;
+function syncExp() {
+  if (!expDraft) return;
+  expDraft.store = val('xStore'); expDraft.date = val('xDate') || expDraft.date;
+  expDraft.items.forEach((it, i) => { const n = $('#xn' + i), p = $('#xp' + i); if (n) it.name = n.value; if (p) it.price = p.value; });
+}
+function openExpenseEditor(e, keep) {
+  expDraft = e;
+  const rows = e.items.map((it, i) => { const c = validPcat(it.cat) || guessPcat(it.name);
+    return '<div class="xrow"><div class="row" style="gap:8px"><div class="grow"><input id="xn' + i + '" value="' + esc(it.name) + '" placeholder="Produkt" style="margin:4px 0"></div><div style="width:96px"><input id="xp' + i + '" inputmode="decimal" value="' + esc(String(it.price === '' || it.price == null ? '' : String(it.price).replace('.', ','))) + '" placeholder="0,00" style="margin:4px 0;text-align:right"></div>' +
+      '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="expDelRow" data-i="' + i + '" aria-label="Usuń pozycję">' + ic('x', 20, 2) + '</button></div>' +
+      '<div class="rbar" style="padding:0 0 6px">' + PCATS.map(k => '<button type="button" class="rf pc-' + k[0] + (k[0] === c ? ' sel' : '') + '" data-act="expPick" data-i="' + i + '" data-c="' + k[0] + '" style="padding:3px 10px 3px 4px"><span class="ri" style="width:22px;height:22px">' + ic('p_' + k[0], 13, 2.2) + '</span>' + k[1] + '</button>').join('') + '</div></div>'; }).join('');
+  const total = e.items.reduce((a, it) => a + parsePrice(it.price), 0);
+  sheet('<h1 style="font-size:22px">' + (e.id ? 'Edytuj wydatek' : e.src === 'receipt' ? 'Sprawdź paragon' : 'Nowy wydatek') + '</h1>' +
+    (e.src === 'receipt' && !e.id ? '<div class="muted" style="margin-bottom:6px">AI mogło się pomylić - popraw nazwy, ceny i kategorie, a potem zapisz.</div>' : '') +
+    '<label>Sklep</label><input id="xStore" value="' + esc(e.store || '') + '" placeholder="np. Biedronka"><label>Data</label><input id="xDate" type="date" value="' + esc(e.date) + '">' +
+    '<label>Pozycje</label>' + rows + '<div class="btns"><button class="btn sm ghost" data-act="expAddRow">+ Pozycja</button></div>' +
+    '<div style="font-size:18px;font-weight:900;margin:10px 0">Razem: ' + money(total) + '</div>' +
+    '<div class="btns foot"><button class="btn" data-act="expSave">Zapisz</button>' + (e.id ? '<button class="btn red" data-act="expDel">Usuń</button>' : '') + '</div>');
+  document.querySelectorAll('#panel .rbar .rf.sel').forEach(b => { b.parentNode.scrollLeft = Math.max(0, b.offsetLeft - 60); });
+}
+async function scanReceipt(cam) {
+  if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
+  const img = await pickImage(1800, cam); if (!img) return;
+  busy(true, 'Czytam paragon…');
+  try {
+    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em: {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","price":0.0,"cat":"klucz kategorii"}]}. Cena to kwota pozycji po rabatach (łączna dla ilości), z kropką jako separatorem. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
+    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Odczytaj wszystkie pozycje z paragonu.' }] }], max: 4000 });
+    const j = extractJSON(out);
+    const items = (j.items || []).filter(it => it && it.name).map(it => ({ name: String(it.name).trim(), price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name) }));
+    if (!items.length) throw new Error('nie znalazłem pozycji - zrób ostrzejsze zdjęcie całego paragonu');
+    busy(false);
+    openExpenseEditor({ id: '', date: /^\d{4}-\d{2}-\d{2}$/.test(j.date || '') ? j.date : today(), store: j.store || '', items, src: 'receipt' });
+  } catch (e) { busy(false); toast('Nie udało się: ' + (e.message || e)); }
 }
 
 /* --- Więcej --- */
 function vMore() {
   return hdr('Więcej') + '<div class="grid">' +
-    tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') + tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
+    tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') + tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'wallet', 'c-green', 'Budżet', 'budget') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
 }
 
 /* --- Rośliny --- */
@@ -1136,7 +1252,7 @@ function addMics() {
     if (el.closest('.mic-wrap')) return;
     const t = (el.getAttribute('type') || 'text').toLowerCase();
     if (el.tagName === 'INPUT' && !['text', 'search'].includes(t)) return;
-    if (el.inputMode === 'numeric' || el.hidden) return;
+    if (el.inputMode === 'numeric' || el.inputMode === 'decimal' || el.hidden) return;
     const w = document.createElement('div'); w.className = 'mic-wrap';
     el.parentNode.insertBefore(w, el); w.appendChild(el);
     const b = document.createElement('button'); b.type = 'button'; b.className = 'micbtn'; b.setAttribute('aria-label', 'Dyktuj'); b.dataset.act = 'fieldMic'; b.innerHTML = ic('mic', 20, 2.2); w.appendChild(b);
@@ -1304,7 +1420,7 @@ function vSearch(q) {
     (q ? (res.map(r => '<div class="card tap" data-act="' + r.act + '" data-id="' + (r.id || '') + '" data-v="' + (r.v || '') + '"><div class="muted">' + r.t + '</div>' + esc(r.title) + '</div>').join('') || '<div class="muted card">Nic nie znaleziono.</div>') : '');
 }
 
-const VIEWS = { start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe, shopping: vShopping, more: vMore, plants: vPlants, events: vEvents, notes: vNotes, chat: vChat, settings: vSettings, search: vSearch };
+const VIEWS = { start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe, shopping: vShopping, more: vMore, plants: vPlants, events: vEvents, notes: vNotes, budget: vBudget, chat: vChat, settings: vSettings, search: vSearch };
 
 /* =====================  ROUTER  ===================== */
 const FAB_VIEWS = ['start', 'links', 'recipes'];
@@ -1902,8 +2018,46 @@ const A = {
   },
 
   /* zakupy */
-  shopAdd: () => { const t = val('newItem'); if (!t) return; S.shopping.push({ id: uid(), text: t, done: false, from: '' }); save(); render(); const e = $('#newItem'); if (e) e.focus(); },
+  shopAdd: () => { const t = val('newItem'); if (!t) return; S.shopping.push({ id: uid(), text: t, done: false, from: '', cat: guessPcat(t) }); save(); render(); const e = $('#newItem'); if (e) e.focus(); },
   shopTick: (d) => { const x = byId(S.shopping, d.id); x.done = !x.done; save(); render(); },
+  shopCat: (d) => {
+    const x = byId(S.shopping, d.id); if (!x) return; const cur = pcatOf(x);
+    sheet('<h1 style="font-size:20px">' + esc(x.text) + '</h1><div class="muted" style="margin-bottom:8px">Wybierz kategorię</div><div class="rbar" style="flex-wrap:wrap;overflow:visible">' +
+      PCATS.map(c => '<button type="button" class="rf pc-' + c[0] + (c[0] === cur ? ' sel' : '') + '" data-act="shopCatSet" data-id="' + x.id + '" data-c="' + c[0] + '"><span class="ri">' + ic('p_' + c[0], 17, 2.1) + '</span>' + c[1] + '</button>').join('') + '</div>');
+  },
+  shopCatSet: (d) => { const x = byId(S.shopping, d.id); if (x) { x.cat = d.c; save(); } closeSheet(); render(); },
+  budMonth: (d) => { budMonth = shiftMonth(budMonth || monthKey(today()), +d.n); render(); },
+  budLimit: () => {
+    const B = S.budget || (S.budget = { limit: 0, cats: {} });
+    sheet('<h1 style="font-size:22px">Limity miesięczne</h1><label>Limit ogólny (zł)</label><input id="bLim" inputmode="decimal" value="' + (B.limit || '') + '" placeholder="np. 3000">' +
+      '<div class="muted" style="margin:4px 0 8px">Limity kategorii są opcjonalne</div>' + PCATS.map(c => '<div class="row"><span class="ri pc-' + c[0] + '" style="display:inline-flex;flex:none;width:34px;height:34px;border-radius:50%;align-items:center;justify-content:center;background:var(--rb);color:var(--rf)">' + ic('p_' + c[0], 17, 2.2) + '</span><div class="grow"><input id="bc_' + c[0] + '" inputmode="decimal" placeholder="' + c[1] + '" value="' + ((B.cats || {})[c[0]] || '') + '" style="margin:4px 0"></div></div>').join('') +
+      '<div class="btns foot"><button class="btn" data-act="budLimitSave">Zapisz</button></div>');
+  },
+  budLimitSave: () => {
+    const B = S.budget || (S.budget = { limit: 0, cats: {} }); B.limit = parsePrice(val('bLim')); B.cats = {};
+    PCATS.forEach(c => { const v = parsePrice(val('bc_' + c[0])); if (v > 0) B.cats[c[0]] = v; });
+    save(); closeSheet(); render();
+  },
+  scanCam: () => scanReceipt(true),
+  scanGal: () => scanReceipt(false),
+  expNew: () => openExpenseEditor({ id: '', date: today(), store: '', items: [{ name: '', price: '', cat: '' }], src: 'manual' }),
+  expEdit: (d) => { const e = byId(S.expenses, d.id); if (e) openExpenseEditor(JSON.parse(JSON.stringify(e))); },
+  expAddRow: () => { syncExp(); expDraft.items.push({ name: '', price: '', cat: '' }); openExpenseEditor(expDraft, true); },
+  expDelRow: (d) => { syncExp(); expDraft.items.splice(+d.i, 1); if (!expDraft.items.length) expDraft.items.push({ name: '', price: '', cat: '' }); openExpenseEditor(expDraft, true); },
+  expSave: () => {
+    syncExp(); const e = expDraft;
+    e.items = e.items.filter(it => String(it.name).trim() || parsePrice(it.price));
+    if (!e.items.length) { toast('Dodaj choć jedną pozycję'); return; }
+    e.items = e.items.map(it => ({ name: String(it.name).trim() || 'Pozycja', price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), norm: normName(it.name) }));
+    e.total = e.items.reduce((a, it) => a + it.price, 0);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) e.date = today();
+    if (e.id) { const i = S.expenses.findIndex(x => x.id === e.id); if (i >= 0) S.expenses[i] = e; else S.expenses.unshift(e); }
+    else { e.id = uid(); e.ts = Date.now(); S.expenses.unshift(e); }
+    budMonth = monthKey(e.date); expDraft = null; save(); closeSheet(); go('budget'); render(); toast('Zapisano ' + money(e.total));
+  },
+  expDel: () => { if (!expDraft || !expDraft.id || !confirm('Usunąć ten wydatek?')) return; S.expenses = S.expenses.filter(x => x.id !== expDraft.id); expDraft = null; save(); closeSheet(); render(); },
+  expPick: (d) => { syncExp(); expDraft.items[+d.i].cat = d.c; openExpenseEditor(expDraft, true); },
+
   shopDel: (d) => { S.shopping = S.shopping.filter(x => x.id !== d.id); save(); render(); },
   shopClear: () => { S.shopping = S.shopping.filter(x => !x.done); save(); render(); },
 

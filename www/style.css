@@ -249,3 +249,27 @@ nav button.center.on{background:none}
 .micbtn.rec{background:#E5484D;color:#fff;animation:bl 1s infinite}
 
 .pedit{position:absolute;top:22px;right:22px;z-index:2;border:0;border-radius:16px;padding:7px 13px;font-size:13px;font-weight:800;color:#2B2320;background:rgba(255,255,255,.68);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);box-shadow:0 2px 8px rgba(0,0,0,.12)}
+
+/* kategorie produktów */
+.pc-warzywa{--rb:#E3F6D0;--rf:#3F7F1B}
+.pc-owoce{--rb:#FFE0E3;--rf:#D4455A}
+.pc-pieczywo{--rb:#EDE7DD;--rf:#7B6A55}
+.pc-nabial{--rb:#E4EEFF;--rf:#3F67C4}
+.pc-sery{--rb:#FFF1B8;--rf:#B58200}
+.pc-mieso{--rb:#FFE0E3;--rf:#C23B4F}
+.pc-wedliny{--rb:#FFE3CF;--rf:#C8470F}
+.pc-ryby{--rb:#D9EEFF;--rf:#2784B8}
+.pc-suche{--rb:#F7E6D8;--rf:#9A6035}
+.pc-mrozonki{--rb:#D8F3F0;--rf:#1F8F86}
+.pc-napoje{--rb:#D9F2EC;--rf:#14917F}
+.pc-slodycze{--rb:#FFDDE8;--rf:#D6457E}
+.pc-chemia{--rb:#E6E6EE;--rf:#5B5F7A}
+.pc-higiena{--rb:#F1E3FF;--rf:#8A52C7}
+.pc-zwierzeta{--rb:#FFE9D2;--rf:#C8691A}
+.pc-inne{--rb:#EEE8E0;--rf:#6F6258}
+
+.shgrp{display:flex;align-items:center;gap:8px;margin:18px 4px 0;font-weight:900;font-size:15px;color:var(--rf)}
+.shgrp .ri{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;background:var(--rb)}
+.bar{height:9px;border-radius:6px;background:#EFE7DF;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px}
+.xrow{border-top:1px solid #EFE7DF;padding-top:6px;margin-top:4px}

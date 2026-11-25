@@ -1020,12 +1020,13 @@ function vRecipe(id) {
 function vShopping() {
   const items = S.shopping;
   const todo = items.filter(x => !x.done), done = items.filter(x => x.done);
+  const est = todo.reduce((a, x) => a + priceFor(x.text), 0);
   const row = (x, show) => '<div class="prow"><button class="check ' + (x.done ? 'on' : '') + '" data-act="shopTick" data-id="' + x.id + '" aria-label="Kupione">' + (x.done ? ic('check', 18, 3) : '') + '</button>' +
-    '<div class="grow ' + (x.done ? 'done' : '') + '" data-act="shopCat" data-id="' + x.id + '"><div class="t">' + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + (show ? '<div style="margin-top:4px">' + pcatTag(pcatOf(x)) + '</div>' : '') + '</div>' +
+    '<div class="grow ' + (x.done ? 'done' : '') + '" data-act="shopCat" data-id="' + x.id + '"><div class="t">' + (isFav(normName(x.text)) ? '<span style="color:#E8A400">★</span> ' : '') + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + (show ? '<div style="margin-top:4px">' + pcatTag(pcatOf(x)) + '</div>' : '') + '</div>' + (priceFor(x.text) ? '<div style="font-weight:700;font-size:13px;white-space:nowrap;margin-right:2px;color:var(--acc);background:rgba(238,122,56,.12);padding:4px 9px;border-radius:99px">' + money(priceFor(x.text)) + '</div>' : '') +
     '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="shopDel" data-id="' + x.id + '" aria-label="Usuń">' + ic('x', 22, 2) + '</button></div>';
   const groups = {}; todo.forEach(x => { const k = pcatOf(x); (groups[k] = groups[k] || []).push(x); });
   const body = PCATS.filter(c => groups[c[0]]).map(c => '<div class="shgrp pc-' + c[0] + '"><span class="ri">' + ic('p_' + c[0], 16, 2.2) + '</span>' + c[1] + ' <span style="opacity:.7">(' + groups[c[0]].length + ')</span></div><div class="card flush" style="margin-top:6px">' + groups[c[0]].map(x => row(x, false)).join('') + '</div>').join('');
-  return '<div class="hdr">' + BACK_BTN() + '<div class="grow"><h1>Zakupy</h1><div class="muted" style="margin-top:4px">' + todo.length + ' do kupienia · ' + done.length + ' w koszyku</div></div>' +
+  return '<div class="hdr">' + BACK_BTN() + '<div class="grow"><h1>Zakupy</h1><div class="muted" style="margin-top:4px">' + todo.length + ' do kupienia · ' + done.length + ' w koszyku' + (est ? ' · ok. ' + money(est) : '') + '</div></div>' +
     (done.length ? '<button class="ibtn" data-act="shopClear">Usuń kupione</button>' : '') + '</div>' +
     '<div class="row"><label class="search grow" style="margin:0"><input id="newItem" placeholder="Dodaj produkt…" aria-label="Dodaj produkt" data-enter="shopAdd" data-live="shopfav" autocomplete="off"></label>' +
     '<button class="ibtn round" style="background:var(--acc);color:#fff;width:52px;height:52px;box-shadow:0 6px 16px rgba(200,69,26,.3)" data-act="shopAdd" aria-label="Dodaj">' + ic('plus', 26, 2.4) + '</button></div><div id="favSug" class="rbar" style="padding:8px 2px 0"></div>' +
@@ -1065,6 +1066,13 @@ function favToggle(name, cat, price) {
   S.favs = S.favs || []; S.favOff = S.favOff || [];
   if (isFav(n)) { S.favs = S.favs.filter(f => f.norm !== n); if (!S.favOff.includes(n)) S.favOff.push(n); save(); return false; }
   S.favOff = S.favOff.filter(x => x !== n); S.favs.push({ id: uid(), name: String(name).trim(), norm: n, cat: validPcat(cat) || guessPcat(name), price: parsePrice(price) }); save(); return true;
+}
+function priceFor(t) {
+  const n = normName(t); if (!n) return 0;
+  const st = favStats(); if (st[n] && st[n].price) return st[n].price;
+  const f = (S.favs || []).find(x => x.norm === n); if (f && f.price) return f.price;
+  const hit = Object.keys(st).filter(k => st[k].price && k.split(' ').includes(n)); // np. "mleko" -> jedyny "mleko"
+  return hit.length === 1 ? st[hit[0]].price : 0;
 }
 function favCatFor(t) { const f = favPool().find(x => norm(x.name) === norm(t)); return f ? f.cat : ''; }
 
@@ -1353,12 +1361,27 @@ function findFuzzy(list, text, get) {
   list.forEach(x => { const sc = jaccard(qt, tokens(get(x))); if (sc > bs) { bs = sc; best = x; } });
   return bs >= 0.4 ? best : null;
 }
+let aiCatBusy = false;
+async function aiCatPending() {
+  if (aiCatBusy || !hasKey()) return;
+  const list = S.shopping.filter(x => !x.done && !x.catSet && !x.aiTried && pcatOf(x) === 'inne');
+  if (!list.length) return;
+  aiCatBusy = true; list.forEach(x => x.aiTried = true);
+  try {
+    const keys = PCATS.filter(c => c[0] !== 'inne').map(c => c[0] + '=' + c[1]).join('; ');
+    const out = await claude({ system: 'Przypisz każdy produkt z listy zakupów do jednej kategorii. Dostępne kategorie (klucz=nazwa): ' + keys + '. Jeśli nic nie pasuje, użyj "inne". Odpowiedz TYLKO JSON-em: {"items":[{"i":0,"c":"klucz"}]}', messages: [{ role: 'user', content: list.map((x, i) => i + ': ' + x.text).join('\n') }], max: 600 });
+    const j = extractJSON(out); const arr = (j && j.items) || [];
+    arr.forEach(r => { const x = list[+r.i]; const c = validPcat(r.c); if (x && c) x.cat = c; });
+  } catch (e) { /* cicho - zostaje Inne */ }
+  aiCatBusy = false; save(); if (route.v === 'shopping') render();
+}
 function addShopItems(items, from) {
   const added = [];
   items.forEach(t => {
     t = cap1(String(t || '').trim()); if (!t) return;
     if (S.shopping.some(x => !x.done && norm(x.text) === norm(t))) return;
     S.shopping.push({ id: uid(), text: t, done: false, from: from || '', cat: favCatFor(t) || guessPcat(t) }); added.push(t);
+    setTimeout(aiCatPending, 300);
   });
   return added;
 }
@@ -2081,7 +2104,7 @@ const A = {
   },
 
   /* zakupy */
-  shopAdd: () => { const t = val('newItem'); if (!t) return; S.shopping.push({ id: uid(), text: t, done: false, from: '', cat: favCatFor(t) || guessPcat(t) }); save(); render(); const e = $('#newItem'); if (e) e.focus(); },
+  shopAdd: () => { const t = val('newItem'); if (!t) return; S.shopping.push({ id: uid(), text: t, done: false, from: '', cat: favCatFor(t) || guessPcat(t) }); save(); render(); setTimeout(aiCatPending, 300); const e = $('#newItem'); if (e) e.focus(); },
   shopTick: (d) => { const x = byId(S.shopping, d.id); x.done = !x.done; save(); render(); },
   shopCat: (d) => {
     const x = byId(S.shopping, d.id); if (!x) return; const cur = pcatOf(x);

@@ -273,3 +273,16 @@ nav button.center.on{background:none}
 .bar{height:9px;border-radius:6px;background:#EFE7DF;overflow:hidden}
 .bar i{display:block;height:100%;border-radius:6px}
 .xrow{border-top:1px solid #EFE7DF;padding-top:6px;margin-top:4px}
+
+.pc-gotowe{--rb:#FFE9C9;--rf:#C77700}
+.pc-przyprawy{--rb:#FBE4D5;--rf:#B5541C}
+.pc-konserwy{--rb:#E8E3D6;--rf:#7A6A3E}
+.pc-alkohol{--rb:#EBDDF7;--rf:#7A3FA8}
+.pc-kosmetyki{--rb:#FFD9F0;--rf:#C42A93}
+.pc-apteka{--rb:#DCF5E4;--rf:#1E8A4C}
+.pc-dzieci{--rb:#FFF3B8;--rf:#A87B00}
+.pc-dom{--rb:#DDF3E4;--rf:#2E8B57}
+.pc-elektronika{--rb:#DDE7FF;--rf:#3558C8}
+.pc-papiernicze{--rb:#FFF1C9;--rf:#B7860B}
+.pc-odziez{--rb:#E4E0FF;--rf:#5B4BC4}
+.pc-auto{--rb:#E2E8EE;--rf:#46596B}

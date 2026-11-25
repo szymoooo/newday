@@ -731,6 +731,17 @@ Object.assign(ICONS, {
   p_higiena: "<path d=\"M12 2.7s7 7.1 7 12a7 7 0 0 1-14 0c0-4.9 7-12 7-12z\"/>",
   wallet: "<path d=\"M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1\"/><path d=\"M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4\"/>",
   scan: "<path d=\"M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2\"/><path d=\"M7 12h10\"/>",
+  p_przyprawy: "<path d=\"M9 3h6l1 3H8z\"/><path d=\"M8 6v13a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V6\"/><path d=\"M10 11h4M10 15h4\"/>",
+  p_konserwy: "<ellipse cx=\"12\" cy=\"6\" rx=\"7\" ry=\"3\"/><path d=\"M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6\"/><path d=\"M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3\"/>",
+  p_gotowe: "<path d=\"M12 21 3.5 6.5a17 17 0 0 1 17 0z\"/><circle cx=\"10\" cy=\"9\" r=\"1\"/><circle cx=\"14\" cy=\"11\" r=\"1\"/><circle cx=\"12\" cy=\"14.5\" r=\"1\"/>",
+  p_alkohol: "<path d=\"M8 22h8\"/><path d=\"M7 10h10\"/><path d=\"M12 15v7\"/><path d=\"M12 15a5 5 0 0 0 5-5c0-2-.5-4-2-8H9c-1.5 4-2 6-2 8a5 5 0 0 0 5 5z\"/>",
+  p_kosmetyki: "<path d=\"M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z\"/><path d=\"M19 17l.7 1.8 1.8.7-1.8.7L19 22l-.7-1.8-1.8-.7 1.8-.7z\"/>",
+  p_apteka: "<path d=\"m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7z\"/><path d=\"m8.5 8.5 7 7\"/>",
+  p_dzieci: "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M8 14s1.5 2 4 2 4-2 4-2\"/><path d=\"M9 9h.01M15 9h.01\"/>",
+  p_elektronika: "<path d=\"M13 2 4 14h7l-1 8 9-12h-7z\"/>",
+  p_papiernicze: "<path d=\"M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z\"/><path d=\"m15 5 4 4\"/>",
+  p_odziez: "<path d=\"M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z\"/>",
+  p_auto: "<path d=\"M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2\"/><circle cx=\"7\" cy=\"17\" r=\"2\"/><path d=\"M9 17h6\"/><circle cx=\"17\" cy=\"17\" r=\"2\"/>",
   k_weterynarz: "<path d=\"M11 2v2\"/><path d=\"M5 2v2\"/><path d=\"M5 3H4a2 2 0 0 0-2 2v4a6 6 0 0 0 12 0V5a2 2 0 0 0-2-2h-1\"/><path d=\"M8 15a6 6 0 0 0 12 0v-3\"/><circle cx=\"20\" cy=\"10\" r=\"2\"/>",
   k_groomer: "<circle cx=\"6\" cy=\"6\" r=\"3\"/><circle cx=\"6\" cy=\"18\" r=\"3\"/><path d=\"M20 4 8.12 15.88\"/><path d=\"M14.47 14.48 20 20\"/><path d=\"M8.12 8.12 12 12\"/>",
   k_karmienie: "<path d=\"M3 12h18l-1.6 6.4a2 2 0 0 1-1.94 1.6H6.54a2 2 0 0 1-1.94-1.6z\"/><circle cx=\"8.5\" cy=\"8.5\" r=\"1.3\"/><circle cx=\"12\" cy=\"6.5\" r=\"1.3\"/><circle cx=\"15.5\" cy=\"8.5\" r=\"1.3\"/>",
@@ -750,7 +761,7 @@ Object.assign(ICONS, {
   k_inne: "<rect x=\"3\" y=\"4\" width=\"18\" height=\"18\" rx=\"2\"/><path d=\"M16 2v4M8 2v4M3 10h18\"/>"
 });
 ICONS.k_rosliny = ICONS.leaf;
-Object.assign(ICONS, { p_pieczywo: ICONS.r_pieczywo, p_mieso: ICONS.r_miesa, p_ryby: ICONS.r_ryby, p_napoje: ICONS.r_napoje, p_zwierzeta: ICONS.k_zwierzeta, p_inne: ICONS.cart });
+Object.assign(ICONS, { p_pieczywo: ICONS.r_pieczywo, p_mieso: ICONS.r_miesa, p_ryby: ICONS.r_ryby, p_napoje: ICONS.r_napoje, p_zwierzeta: ICONS.k_zwierzeta, p_inne: ICONS.cart, p_dom: ICONS.k_dom });
 const CATS = [['praca', 'Praca'], ['zdrowie', 'Zdrowie'], ['leki', 'Leki'], ['weterynarz', 'Weterynarz'], ['groomer', 'Fryzjer dla zwierząt'], ['karmienie', 'Karmienie zwierząt'], ['zwierzeta', 'Zwierzęta'], ['rosliny', 'Rośliny'], ['dom', 'Dom'], ['zakupy', 'Zakupy'], ['rodzina', 'Rodzina'], ['nauka', 'Nauka'], ['sport', 'Sport'], ['spotkanie', 'Spotkanie'], ['urodziny', 'Urodziny'], ['podroz', 'Podróż'], ['auto', 'Auto'], ['finanse', 'Finanse'], ['uroda', 'Uroda'], ['urzedy', 'Sprawy'], ['inne', 'Inne']];
 const CAT_RULES = [
   ['rosliny', 'podlej|podlew|nawoż|nawoz|storczyk|kwiatk', 'roślina|rośliny|rośliną|rosliny|kwiaty'],
@@ -786,32 +797,45 @@ const catOf = e => (e && CATS.some(c => c[0] === e.cat) ? e.cat : guessCat(e && 
 const validCat = c => (CATS.some(x => x[0] === c) ? c : '');
 const catName = k => (CATS.find(c => c[0] === k) || ['', 'Inne'])[1];
 /* ---------- kategorie produktów (zakupy i budżet) ---------- */
-const PCATS = [['warzywa', 'Warzywa'], ['owoce', 'Owoce'], ['pieczywo', 'Pieczywo'], ['nabial', 'Nabiał'], ['sery', 'Sery'], ['mieso', 'Mięso'], ['wedliny', 'Wędliny'], ['ryby', 'Ryby'], ['suche', 'Produkty suche'], ['mrozonki', 'Mrożonki'], ['napoje', 'Napoje'], ['slodycze', 'Słodycze i przekąski'], ['chemia', 'Chemia domowa'], ['higiena', 'Higiena'], ['zwierzeta', 'Dla zwierząt'], ['inne', 'Inne']];
+const PCATS = [['warzywa', 'Warzywa'], ['owoce', 'Owoce'], ['pieczywo', 'Pieczywo'], ['nabial', 'Nabiał'], ['sery', 'Sery'], ['mieso', 'Mięso'], ['wedliny', 'Wędliny'], ['ryby', 'Ryby'], ['mrozonki', 'Mrożonki'], ['gotowe', 'Gotowe dania'], ['suche', 'Produkty suche'], ['przyprawy', 'Przyprawy i oleje'], ['konserwy', 'Konserwy i słoiki'], ['slodycze', 'Słodycze i przekąski'], ['napoje', 'Napoje'], ['alkohol', 'Alkohol'], ['chemia', 'Chemia domowa'], ['higiena', 'Higiena'], ['kosmetyki', 'Kosmetyki'], ['apteka', 'Apteka i zdrowie'], ['dzieci', 'Dla dzieci'], ['zwierzeta', 'Dla zwierząt'], ['dom', 'Dom i ogród'], ['elektronika', 'Elektronika'], ['papiernicze', 'Papiernicze i szkoła'], ['odziez', 'Odzież i obuwie'], ['auto', 'Auto'], ['inne', 'Inne']];
 const PCAT_RULES = [
-  ['zwierzeta', 'karma|karmy|dla psa|dla kota|żwirek|zwirek|przysmak dla|gabi|haru|kość dla|kosc dla|puszka dla|chrupki dla|smycz|obroża|obroza|zabawka dla psa'],
-  ['sery', 'ser |sera|sery|serek|serka|mozzarell|parmezan|feta|gouda|edam|cheddar|ricott|mascarpone|camembert|brie|oscypek|twaróg|twarog|halloumi|śmietankowy ser'],
-  ['wedliny', 'szynk|kiełbas|kielbas|kabanos|parówk|parowk|salami|mortadel|boczek|pasztet|polędwic|poledwic|wędlin|wedlin|schab pieczony|baleron|kaszank|chorizo|prosciutto|indyk plastry'],
-  ['chemia', 'proszek do prania|płyn do|plyn do|płyn do naczyń|tabletki do zmywarki|kapsułki do prania|kapsulki do prania|odświeżacz|odswiezacz|domestos|ajax|cif|mydło w płynie|worki na śmieci|worki|gąbk|gabk|ścierk|scierk|folia|papier do pieczenia|ręcznik papierowy|reczniki papierowe|ręczniki papierowe|płyn do szyb|odkamieniacz|zmywarka|sól do zmywarki|chusteczki do|rękawiczki|rekawiczki|świeczk|swieczk|baterie|żarówk|zarowk|pochłaniacz|zmiękczacz|zmiekczacz|silan|lenor|vanish|calgon|odplamiacz|środek czystości|srodek czystosci|szczotk'],
-  ['higiena', 'szampon|odżywka do włosów|odzywka do wlosow|mydło|mydlo|żel pod prysznic|zel pod prysznic|pasta do zębów|pasta do zebow|szczoteczk|dezodorant|papier toaletowy|chusteczki|podpask|tampon|wata|patyczki|płatki kosmet|platki kosmet|krem |balsam|golark|maszynk|pianka do golenia|płyn do kąpieli|plyn do kapieli|nawilżane|nawilzane|pieluch|waciki|plaster|perfum|lakier do włosów|lakier do wlosow|tusz|puder|szminka|zmywacz|płyn micel|plyn micel|nić dentystyczna|nic dentystyczna|płyn do płukania|plyn do plukania'],
-  ['mrozonki', 'mrożon|mrozon|lody|lód|pizza mroż|frytki mroż|hortex|paluszki rybne|pierogi mroż'],
-  ['ryby', 'ryb|łosoś|losos|dorsz|śledź|sledz|tuńczyk|tunczyk|makrel|pstrąg|pstrag|krewetk|karp|mintaj|sandacz|panga|owoce morza|sardynk'],
-  ['mieso', 'mięs|mies|kurczak|pierś|piers|udk|schab|karków|karkow|wieprzow|wołow|wolow|indyk|mielon|żeberk|zeberk|kotlet|stek|łopatk|lopatk|golonk|wątrob|watrob|skrzydełk|skrzydelk|cielęc|cielec|kaczk|królik|krolik'],
-  ['nabial', 'mleko|mleka|masł|masl|śmietan|smietan|jogurt|kefir|maślank|maslank|jaja|jajka|jajko|margaryn|serwatk|skyr|bitą|actimel|danio|puddin|budyń|budyn|twarożek|twarozek|mleczn'],
-  ['pieczywo', 'chleb|bułk|bulk|bagiet|chałk|chalk|rogal|drożdżówk|drozdzowk|tost|pieczyw|precel|ciabatt|pita|tortill|bułeczk|buleczk|grahamk|pączek|paczek'],
-  ['warzywa', 'ziemniak|marchew|marchewk|cebul|czosnek|pomidor|ogórek|ogorek|ogórk|papryk|sałat|salat|szpinak|brokuł|brokul|kalafior|kapust|burak|seler|pietruszk|por |pory|cukini|dyni|rzodkiew|bakłażan|baklazan|kukurydz|fasol|groszek|szczypior|koper|natk|rukol|jarmuż|jarmuz|pieczark|grzyby|brukselk|batat|imbir|rzepa|pomidorki|warzyw|awokado'],
-  ['owoce', 'jabłk|jablk|banan|pomarańcz|pomarancz|cytryn|limonk|gruszk|winogron|truskawk|malin|jagod|borówk|borowk|wiśni|wisni|czereśn|czeresn|brzoskwin|nektaryn|śliwk|sliwk|arbuz|melon|kiwi|ananas|mango|mandarynk|grejpfrut|owoc|morel|porzeczk|agrest|figi|daktyl|rodzynk'],
-  ['napoje', 'woda|wody|sok |soki|soku|napój|napoj|cola|pepsi|fanta|sprite|piwo|wino|wódk|wodk|whisky|herbat|kaw|cappuccino|kakao|lemoniad|oranżad|oranzad|energetyk|tonik|mineralna|izotonik|syrop|kompot|nektar|red bull|prosecco|szampan|drink'],
-  ['slodycze', 'czekolad|baton|ciastk|ciasto|wafel|żelk|zelk|cukierk|lizak|chips|chrupki|paluszk|orzech|orzeszk|popcorn|krakers|herbatnik|lody|batonik|słodycz|slodycz|biszkopt|pralin|snickers|mars|oreo|prince|ptasie mleczko|krówk|krowk|marcepan|chałwa|chalwa|miód|miod|nutell|dżem|dzem|powidł|powidl|galaretk|budyń'],
-  ['suche', 'mąk|mak |makaron|ryż|ryz|kasz|płatki|platki|cukier|sól|sol |olej|oliwa|ocet|przypraw|pieprz|bułka tart|drożdże|drozdze|proszek do pieczenia|soda|żelatyn|zelatyn|kisiel|zupa|zupka|sos |sosy|ketchup|majonez|musztard|konserw|puszk|passata|koncentrat|mielon|bulion|kostk|wafle ryżowe|musli|granola|nasiona|siemię|siemie|chia|fasola w|ciecierzyc|soczewic|tahini|miodu|cynamon|wanili|kakao w proszku|skrobi|panko|tortilla']
+  ['zwierzeta', 'karma|karmy|dla psa|dla kota|zwirek|przysmak dla|gabi|haru|smycz|obroz|zabawka dla psa|kosc dla|chrupki dla|saszetk|kuwet|pies|psa |kot |kota '],
+  ['dzieci', 'pieluch|chusteczki nawilz|mleko modyf|bebiko|nutrilon|gerber|sloiczek|kaszka|smoczek|dla dzieci|dla niemowl|pampers|huggies|bobas|baby'],
+  ['auto', 'paliwo|benzyn|olej silnikow|plyn do chlodnic|plyn do spryskiwaczy|wycieraczk|odswiezacz do auta|myjni|opony|autoszampon|wosk do auta|tankowani|lpg|diesel|adblue|parking|autostrad|akumulator samochod|filtr oleju|filtr powietrza'],
+  ['elektronika', 'bateri|akumulator|ladowark|kabel|usb|hdmi|sluchawk|powerbank|pendrive|karta pamieci|mysz kompu|klawiatur|etui na telefon|szklo hartowane|zarowk|przedluzacz|zasilacz|adapter|pilot|router|glosnik|telefon|tablet |laptop|monitor|drukark|toner|tusz do drukark'],
+  ['papiernicze', 'zeszyt|dlugopis|olowek|kredki|farbki|piornik|papier ksero|koperta|segregator|teczka|marker|zakreslacz|gumka|temperowk|plastelin|klej w sztyfcie|kalendarz|notes|karteczki|papier a4|blok rysunk|blok techniczny|nozyczki|linijka|zszywk|zszywacz|dziurkacz|spinacze|tasma klejac|brystol|plecak szkoln'],
+  ['odziez', 'skarpet|majtki|bielizn|koszulk|t-shirt|spodnie|bluza|kurtka|sweter|czapka|rekawic|szalik|buty|obuwie|kapcie|klapki|tenisowk|sandal|rajstop|pizam|sukienk|spodnic|koszula|kombinezon|stroj kapiel|ubrani|pasek do spodni|legins|dres|podkolan|stopki'],
+  ['alkohol', 'piwo|piwa|wino|wina |wodk|whisky|whiskey|rum |gin |likier|nalewk|prosecco|szampan|cydr|koniak|brandy|tequila|aperol|campari|jagermeister|lager|porter|alkohol|pilsner'],
+  ['apteka', 'apteka|tabletki na|tabletki przeciw|leki|lek |ibuprom|paracetamol|apap|witamin|suplement|plaster|bandaz|termometr|krople do|aspiryn|probiotyk|masc |magnez|ibuprofen|nurofen|gripex|strepsils|aviomarin|rutinoscorbin|syrop na|zel na|zel przeciw|na kaszel|na bol|na gardlo|rehydrac|elektrolity|test ciazow|maseczk chirurg|rekawiczki jednoraz|woda utleniona|spirytus salicyl'],
+  ['kosmetyki', 'krem |krem do|balsam|perfum|lakier do wlosow|tusz do rzes|puder|szminka|zmywacz|plyn micel|podklad|cien do powiek|pomadka|lakier do paznokci|maska do twarzy|serum|tonik do twarzy|kosmetyk|maseczk|farba do wlosow|bronzer|eyeliner|rozswietlacz|woda toaletowa|mgielka|odzywka do rzes|olejek do twarzy|plyn do demakijazu'],
+  ['higiena', 'szampon|odzywka do wlosow|mydlo|zel pod prysznic|pasta do zebow|szczoteczk|dezodorant|papier toaletowy|chusteczk|podpask|tampon|wata |watki|patyczki|platki kosmet|golark|maszynk|pianka do golenia|plyn do kapieli|nawilzane|waciki|plyn do plukania|nic dentystyczna|prezerwatyw|zel do mycia|zel do higieny|krem do rak|oliwka|talk|do zebow|ręcznik higien|recznik higien|wkladki|plyn intymny|zel intymny|plyn do ust'],
+  ['chemia', 'proszek do prania|plyn do|tabletki do zmywarki|kapsulki do prania|odswiezacz|domestos|ajax|cif |mydlo w plynie|worki na smieci|worki|gabk|scierk|folia|papier do pieczenia|reczniki papierowe|recznik papierowy|odkamieniacz|sol do zmywarki|rekawiczki|zmiekczacz|silan|lenor|vanish|calgon|odplamiacz|srodek czystosci|szczotk|kostka do wc|zel do wc|wc |ludwik|pronto|mop|wiadro|zapalki|swieczk|znicz|przeciw mol|mole|owadobojcz|na muchy|na mrowki|odtluszcz|odrdzew|do kuchni|do lazienki|do okien|do podlog|pranie|zmywar|do prania|torebki|zaparzacz'],
+  ['dom', 'zarowk|swieca|lampka|doniczk|ziemia do|nawoz|nasiona kwiat|kwiat|ogrod|narzedzi|srubk|gwozdz|tasma|klej|farba|pedzel|zamek|zawias|wieszak|poduszk|koc |przescieradl|recznik|obrus|zaslon|dywan|garnek|patelni|sztucc|talerz|kubek|szklank|noz |deska|pojemnik|termos|butelka|czajnik|toster|odkurzacz|zelazko|suszark|parasol|latark|kosz |pudelko|organizer|lustro|wazon|materac|prescieradlo|pościel|poscie|koldra|mebl|lampa|przybor|kuchenn|wkret|wiertl|mlotek|drabin|kolki'],
+  ['sery', 'ser |sera|sery|serow|serek|serka|mozzarell|parmezan|feta|gouda|edam|cheddar|ricott|mascarpone|camembert|brie|oscypek|twarog|twarozek|halloumi|gorgonzol|rokpol|tylzyck|zolty ser|topiony|tarty ser'],
+  ['wedliny', 'szynk|kielbas|kabanos|parowk|salami|mortadel|boczek|pasztet|poledwic|wedlin|baleron|kaszank|chorizo|prosciutto|schab pieczony|krakowsk|podwawelsk|mielonk|salceson|sokolk|kiszka|wedzon|bekon|pancett|parmenska'],
+  ['mrozonki', 'mrozon|lody|lod |hortex|paluszki rybne|frytki|warzywa na patelni|mrozonk|lodz'],
+  ['ryby', 'ryb|losos|dorsz|sledz|tunczyk|makrel|pstrag|krewetk|karp|mintaj|sandacz|panga|owoce morza|sardynk|halibut|tilapi|szprot|kalmar|mule |ostryg|dorad|labraks|anchois|miruna|morszczuk|surimi|kawior'],
+  ['mieso', 'mies|kurczak|kurcz|piers|udk|schab|karkow|wieprzow|wolow|indyk|mielon|zeberk|kotlet|stek|lopatk|golonk|watrob|skrzydelk|cielec|kaczk|krolik|rolad|bitk|gulasz|filet|pulpet|flaczki|baranin|jagniec|burger|hamburger|antrykot|szponder|rosol|drob|rostbef|ozorek|serca|zoladki|poledwiczk'],
+  ['nabial', 'mlek|masl|smietan|jogurt|kefir|maslank|jaj|margaryn|serwatk|skyr|actimel|danio|pudding|twarozk|mleczn|zott|jogobella|bakoma|piatnica|mlekovita|oatly|alpro|serniczk|deser mleczny|galaretk mlecz|bita smietan|maslo|jajk|jajek|smietank|ayran|maslanka'],
+  ['pieczywo', 'chleb|bulk|bagiet|chalk|rogal|drozdzowk|tost|pieczyw|precel|ciabatt|pita|tortill|buleczk|grahamk|paczek|chrupk|wafle ryz|obwarzan|bagietk|rogalik|zakwas|razow|zytni'],
+  ['warzywa', 'ziemniak|kartofl|marchew|cebul|czosnek|pomidor|ogorek|ogork|papryk|salat|szpinak|brokul|kalafior|kapust|burak|seler|pietruszk|por |pory|cukini|dyni|rzodkiew|baklazan|kukurydz|fasolk|groszek|szczypior|koper|natk|rukol|jarmuz|pieczark|grzyb|brukselk|batat|imbir|rzepa|warzyw|awokado|bazyli|mieta|kolendr|rzezuch|cykori|szparag|bob |kabaczek|zielenin|boczniak|chrzan swiezy|kiszona kapusta|sałat|mix salat'],
+  ['owoce', 'jablk|banan|pomarancz|cytryn|limonk|gruszk|winogron|truskawk|malin|jagod|borowk|wisni|czeresn|brzoskwin|nektaryn|sliwk|arbuz|melon|kiwi|ananas|mango|mandarynk|grejpfrut|owoc|morel|porzeczk|agrest|figi|daktyl|rodzynk|granat|papaja|marakuj|klementynk|jezyn|zurawin|suszone'],
+  ['napoje', 'woda|wody|sok |soki|soku|napoj|cola|pepsi|fanta|sprite|herbat|kaw|cappuccino|latte|kakao|lemoniad|oranzad|energet|tonik|mineraln|izotonik|kompot|nektar|red bull|syrop do|smoothie|woda kokos|yerba|matcha|napoj roslin'],
+  ['slodycze', 'czekolad|baton|ciastk|ciasto|wafel|zelk|cukierk|lizak|chips|chrupki|paluszk|popcorn|krakers|herbatnik|slodycz|biszkopt|pralin|snickers|mars |oreo|prince|ptasie mleczko|krowk|marcepan|chalwa|budyn|piernik|pierniczk|lukier|posypk|draze|guma do zucia|gumy|mentos|tic tac|haribo|kinder|milka|lindt|wedel|torcik|babeczk|muffin|ptys|sernik|nutell|krem czekolad|chalw|rogaliki|ptasie|batonik|orzech w czekol|kisiel'],
+  ['gotowe', 'pizza|zapiekank|hot dog|nachos|sushi|danie gotow|kebab|krokiet|pierogi|nalesnik|golabk|bigos|lasagn|zupa gotow|kanapk|wrap|sandwich|gotow|ravioli|gnocchi|kopytk|knedle|pyzy|placki|zurek|barszcz gotow|zupka|zupa|instant|chinska|ramen'],
+  ['konserwy', 'konserw|puszk|sloik|ogorki kiszone|kiszon|marynat|dzem|powidl|konfitur|miod|pasta kanapkowa|fasola w|kukurydza w|groszek konserw|tunczyk w|oliwki|kapary|buraczki|ogorki konserwowe|mus owocowy|pomidory w puszce|ananas w puszce|brzoskwinie w puszce|ciecierzyca w|fasola czerwona|fasola biala|soczewica w|chrzan|musztard|ketchup|mus jablkowy|przecier'],
+  ['przyprawy', 'przypraw|pieprz|cynamon|wanili|oregano|majeranek|tymianek|rozmaryn|curry|kurkuma|gozdzik|ziele angielskie|lisc laurowy|kmin|galk|vegeta|maggi|kostk|bulion|sos |sosy|majonez|oliw|olej|ocet|sojowy|tabasco|sriracha|pesto|passata|koncentrat|dressing|sol morska|sol himalaj|papryka mielona|papryka slodka|papryka ostra|chili|czosnek granul|cebula granul|ziola|prowansalskie|szafran|kardamon|anyz|gozdziki|vegeta|gorczyc'],
+  ['suche', 'maka|maki|makaron|ryz|kasz|platki|cukier|cukr|sol |soli|bulka tart|drozdze|proszek do pieczenia|soda|zelatyn|musli|granola|nasiona|siemie|chia|ciecierzyc|soczewic|skrobi|panko|orzech|orzeszk|migdal|bakali|kuskus|bulgur|polenta|otreb|wiorki|owsian|spaghetti|penne|nitki|tagliatelle|slonecznik|pestki|sezam|len |mak |mak$|slodzik|ksylitol|erytrol|stewia|maka ziemniacz|mak niebieski|cukier puder|cukier brazow|cukier trzcin|cukier wanil|kisiel|budyn w proszku|mieszanka|kakao w proszku']
 ];
 const pcatName = k => (PCATS.find(c => c[0] === k) || ['inne', 'Inne'])[1];
 const validPcat = k => (PCATS.some(c => c[0] === k) ? k : '');
+const deacc = t => String(t || '').toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 function guessPcat(text) {
-  const t = ' ' + String(text || '').toLowerCase().trim();
+  const t = ' ' + deacc(text).trim() + ' ';
   for (const [k, rx] of PCAT_RULES) if (new RegExp('(?<![\\p{L}])(?:' + rx + ')', 'u').test(t)) return k;
   return 'inne';
 }
-const pcatOf = x => validPcat(x.cat) || guessPcat(x.text || x.name);
+const pcatOf = x => (x.catSet && validPcat(x.cat)) || (x.cat && x.cat !== 'inne' && validPcat(x.cat)) || guessPcat(x.text || x.name);
 const pcatTag = k => '<span class="rtag pc-' + k + '">' + ic('p_' + k, 13, 2.2) + esc(pcatName(k)) + '</span>';
 /* pieniądze */
 const money = n => (Math.round((+n || 0) * 100) / 100).toFixed(2).replace('.', ',') + ' zł';
@@ -2082,7 +2106,7 @@ const A = {
   expStar: (d) => { syncExp(); const it = expDraft.items[+d.i]; if (!String(it.name).trim()) { toast('Najpierw wpisz nazwę produktu'); return; } const on = favToggle(it.name, it.cat, it.price); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); openExpenseEditor(expDraft, true); },
   shopFav: (d) => { const x = byId(S.shopping, d.id); if (!x) return; const on = favToggle(x.text, pcatOf(x), ''); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); closeSheet(); render(); },
   chatChoice: (d) => { const ta = $('#chatIn'); if (ta) { ta.value = 'dodaj ' + d.t; A.chatSend(); } },
-  shopCatSet: (d) => { const x = byId(S.shopping, d.id); if (x) { x.cat = d.c; save(); } closeSheet(); render(); },
+  shopCatSet: (d) => { const x = byId(S.shopping, d.id); if (x) { x.cat = d.c; x.catSet = true; save(); } closeSheet(); render(); },
   budMonth: (d) => { budMonth = shiftMonth(budMonth || monthKey(today()), +d.n); render(); },
   budLimit: () => {
     const B = S.budget || (S.budget = { limit: 0, cats: {} });

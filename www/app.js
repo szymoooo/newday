@@ -1048,7 +1048,7 @@ function favStats() {
 }
 function favPool() {
   const st = favStats(), off = S.favOff || [], out = {};
-  (S.favs || []).forEach(f => { const s = st[f.norm]; out[f.norm] = { norm: f.norm, name: (s && s.name) || f.name, cat: (s && s.cat) || f.cat, price: s ? s.price : f.price, n: s ? s.n : 0, manual: true, size: f.size || '', info: f.info || '', img: f.img || '', hint: (s && s.type) || '' }; });
+  (S.favs || []).forEach(f => { const s = st[f.norm]; out[f.norm] = { norm: f.norm, name: f.name || (s && s.name), cat: f.cat || (s && s.cat), price: s ? s.price : f.price, n: s ? s.n : 0, manual: true, size: f.size || '', info: f.info || '', img: f.img || '', img2: f.img2 || '', hint: (s && s.type) || '' }; });
   Object.keys(st).forEach(n => { if (st[n].n >= 3 && !off.includes(n) && !out[n]) out[n] = { norm: n, name: st[n].name, cat: st[n].cat, price: st[n].price, n: st[n].n, hint: st[n].type || '' }; });
   const al = S.favAlias || {}; Object.values(out).forEach(f => { f.hint = (f.hint + ' ' + (al[f.norm] || []).join(' ')).trim(); });
   return Object.values(out).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'pl'));
@@ -1157,11 +1157,18 @@ async function scanReceipt(cam) {
 
 /* --- Ulubione produkty: ekran i dodawanie ze zdjęcia --- */
 let favDraft = [];
+function favRow(f, cardAct) {
+  const a = ' data-act="favCard" data-n="' + esc(f.norm) + '"';
+  return '<div class="prow">' + (f.img ? '<img src="' + f.img + '" alt=""' + a + ' style="width:50px;height:50px;border-radius:10px;object-fit:cover;flex:none;background:#fff">' : '') +
+    '<div class="grow"' + a + '><div class="t">' + esc(f.name) + (f.size ? ' <span class="muted" style="font-weight:600">· ' + esc(f.size) + '</span>' : '') + '</div><div class="muted">' + pcatName(f.cat) + (f.price ? ' · ost. ' + money(f.price) : '') + (f.n ? ' · kupione ' + f.n + '×' : '') + '</div>' + (f.info ? '<div class="muted" style="margin-top:2px">' + esc(f.info) + '</div>' : '') + '</div>' +
+    '<button class="ibtn round" style="box-shadow:none;background:transparent;color:var(--acc)" data-act="favAdd" data-n="' + esc(f.norm) + '" aria-label="Dodaj do zakupów">' + ic('cart', 22, 1.9) + '</button>' +
+    '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#F2B21B" data-act="favDel" data-n="' + esc(f.norm) + '" aria-label="Usuń z ulubionych">' + ic('star', 22, 1.7, 'currentColor') + '</button></div>';
+}
 function vFavs() {
   const pool = favPool();
   return hdr('Ulubione produkty') + '<div class="btns" style="margin:4px 0 10px"><button class="btn" data-act="favScanCam">📷 Dodaj ze zdjęcia</button><button class="btn ghost" data-act="favScanGal">🖼 Z galerii</button><button class="btn ghost" data-act="favNew">+ Ręcznie</button></div>' +
     '<div class="muted" style="margin-bottom:8px">Produkty ze zdjęć, z gwiazdką i kupione z paragonów co najmniej 3 razy. Dodasz je do zakupów przyciskiem z koszykiem.</div>' +
-    (pool.length ? '<div class="card flush">' + pool.map(f => '<div class="prow"><div class="grow"><div class="t">' + esc(f.name) + '</div><div class="muted">' + pcatName(f.cat) + (f.price ? ' · ost. ' + money(f.price) : '') + (f.n ? ' · kupione ' + f.n + '×' : '') + '</div></div><button class="ibtn round" style="box-shadow:none;background:transparent;color:var(--acc)" data-act="favAdd" data-n="' + esc(f.norm) + '" aria-label="Dodaj do zakupów">' + ic('cart', 22, 1.9) + '</button><button class="ibtn round" style="box-shadow:none;background:transparent;color:#F2B21B" data-act="favDel" data-n="' + esc(f.norm) + '" aria-label="Usuń z ulubionych">' + ic('star', 22, 1.7, 'currentColor') + '</button></div>').join('') + '</div>' : '<div class="card"><div class="muted">Brak ulubionych. Zrób zdjęcie produktu, a dodam go tutaj.</div></div>');
+    (pool.length ? '<div class="card flush">' + pool.map(f => favRow(f)).join('') + '</div>' : '<div class="card"><div class="muted">Brak ulubionych. Zrób zdjęcie produktu, a dodam go tutaj.</div></div>');
 }
 let favFront = '';
 const thumbOf = (url, w) => new Promise(res => { const im = new Image(); im.onload = () => { const k = Math.min(1, w / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)); }; im.onerror = () => res(''); im.src = url; });
@@ -1182,7 +1189,7 @@ async function favRun(img, back) {
     const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img)].concat(back ? [imgBlock(back)] : []).concat([{ type: 'text', text: back ? 'Zdjęcie 1 to przód, zdjęcie 2 to tył tego samego produktu. Jaki to produkt? Weź pojemność/gramaturę, producenta i skład z tyłu.' : 'Jaki jest główny produkt na zdjęciu?' }]) }], max: 700 });
     const j = extractJSON(out);
     favDraft = (j.items || []).filter(it => it && it.name).slice(0, 3).map(it => ({ name: String(it.name).trim(), type: String(it.type || '').toLowerCase().trim().slice(0, 30), cat: validPcat(it.cat) || guessPcat(it.name), size: it.size && it.size !== 'null' ? String(it.size).trim() : '', info: String(it.info || '').trim(), on: true }));
-    if (favDraft.length) { const th = await thumbOf(img, 160); favDraft.forEach(d => d.img = th); }
+    if (favDraft.length) { const th = await thumbOf(img, 380), th2 = back ? await thumbOf(back, 380) : ''; favDraft.forEach(d => { d.img = th; d.img2 = th2; }); }
     if (favDraft.length) {
       busy(true, 'Szukam informacji o produkcie…');
       try {
@@ -1205,6 +1212,15 @@ function favDraftSheet() {
     '<div class="btns foot"><button class="btn" data-act="favDraftSave">⭐ Dodaj do ulubionych</button></div>');
 }
 function favDraftSync() { favDraft.forEach((d, i) => { const n = $('#fdn' + i), c = $('#fdc' + i), z = $('#fds' + i), f = $('#fdi' + i); if (n) d.name = n.value.trim(); if (c) d.cat = c.value; if (z) d.size = z.value.trim(); if (f) d.info = f.value.trim(); }); }
+function favCardSheet(n) {
+  const f = favPool().find(x => x.norm === n); if (!f) return;
+  const st = favStats()[n] || {};
+  sheet((f.img || f.img2 ? '<div class="row" style="gap:8px;margin-bottom:10px">' + [f.img, f.img2].filter(Boolean).map(u => '<img src="' + u + '" alt="" style="flex:1;min-width:0;max-height:210px;object-fit:contain;border-radius:12px;background:#fff">').join('') + '</div>' : '') +
+    '<label>Nazwa</label><input id="fcName" value="' + esc(f.name) + '"><label>Pojemność / gramatura</label><input id="fcSize" value="' + esc(f.size || '') + '" placeholder="np. 1,75 l"><label>Opis</label><textarea id="fcInfo" rows="3" placeholder="Opis produktu">' + esc(f.info || '') + '</textarea>' +
+    '<label>Kategoria</label><select id="fcCat">' + PCATS.map(c => '<option value="' + c[0] + '"' + (c[0] === f.cat ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select>' +
+    '<div class="muted" style="margin-top:10px">' + (st.unit === 'kg' && st.unitPrice ? 'Cena: ' + money(st.unitPrice) + '/kg' : f.price ? 'Ostatnia cena: ' + money(f.price) : 'Brak ceny - pojawi się po zeskanowaniu paragonu') + (f.n ? ' · kupione ' + f.n + '×' : '') + (st.last ? ' · ostatnio ' + st.last : '') + '</div>' +
+    '<div class="btns foot"><button class="btn" data-act="favCardSave" data-n="' + esc(n) + '">Zapisz</button><button class="btn ghost" data-act="favAdd" data-n="' + esc(n) + '" data-close="1">🛒 Do zakupów</button><button class="btn ghost" data-act="favDel" data-n="' + esc(n) + '" data-close="1">☆ Usuń z ulubionych</button></div>');
+}
 function vMore() {
   return hdr('Więcej') + '<div class="grid">' +
     tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') + tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'wallet', 'c-green', 'Budżet', 'budget') + tile('go', 'star', 'c-yellow', 'Ulubione produkty', 'favs') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
@@ -2173,6 +2189,7 @@ const A = {
       '<div class="btns foot"><button class="btn ghost" data-act="shopFav" data-id="' + x.id + '">' + (isFav(normName(x.text)) ? '★ Usuń z ulubionych' : '☆ Dodaj do ulubionych') + '</button></div>');
   },
   favAdd: (d) => {
+    if (d.close) closeSheet();
     const f = favPool().find(x => x.norm === d.n); if (!f) return;
     const q = ($('#newItem') && $('#newItem').value || '').trim().toLowerCase();
     if (q.length >= 2 && !f.name.toLowerCase().includes(q)) { S.favAlias = S.favAlias || {}; const a = S.favAlias[f.norm] = S.favAlias[f.norm] || []; if (!a.includes(q)) a.push(q); }
@@ -2191,8 +2208,8 @@ const A = {
     favDraft.filter(d => d.on && d.name).forEach(d => {
       const k = normName(d.name); if (!k) return;
       S.favOff = (S.favOff || []).filter(x => x !== k);
-      if (!(S.favs || (S.favs = [])).some(f => f.norm === k)) S.favs.push({ id: uid(), name: d.name, norm: k, cat: validPcat(d.cat) || guessPcat(d.name), price: 0, size: d.size || '', info: d.info || '', img: d.img || '' });
-      else { const f0 = S.favs.find(f => f.norm === k); if (d.img) f0.img = d.img; if (d.size) f0.size = d.size; if (d.info) f0.info = d.info; }
+      if (!(S.favs || (S.favs = [])).some(f => f.norm === k)) S.favs.push({ id: uid(), name: d.name, norm: k, cat: validPcat(d.cat) || guessPcat(d.name), price: 0, size: d.size || '', info: d.info || '', img: d.img || '', img2: d.img2 || '' });
+      else { const f0 = S.favs.find(f => f.norm === k); if (d.img) { f0.img = d.img; f0.img2 = d.img2 || ''; } if (d.size) f0.size = d.size; if (d.info) f0.info = d.info; }
       if (d.type) { const al = S.favAlias || (S.favAlias = {}); al[k] = Array.from(new Set((al[k] || []).concat([d.type]))); }
       n++;
     });
@@ -2200,12 +2217,21 @@ const A = {
   },
   favNew: () => sheet('<h1 style="font-size:22px">Nowy ulubiony produkt</h1><label>Marka i nazwa</label><input id="fnName" placeholder="np. Alpro jagodowe" autocomplete="off"><div class="btns foot"><button class="btn" data-act="favNewSave">⭐ Dodaj</button></div>'),
   favNewSave: () => { const t = val('fnName'); if (!t) { toast('Wpisz nazwę'); return; } const k = normName(t); if (!isFav(k)) favToggle(t, guessPcat(t), ''); closeSheet(); render(); },
+  favCard: (d) => favCardSheet(d.n),
+  favCardSave: (d) => {
+    const f = favPool().find(x => x.norm === d.n); if (!f) return;
+    const name = val('fcName') || f.name; S.favs = S.favs || [];
+    let r = S.favs.find(x => x.norm === d.n); if (!r) { r = { id: uid(), norm: d.n, price: f.price || 0 }; S.favs.push(r); }
+    S.favOff = (S.favOff || []).filter(x => x !== d.n);
+    r.name = name; r.size = val('fcSize'); r.info = val('fcInfo'); r.cat = validPcat(val('fcCat')) || f.cat; if (f.img && !r.img) { r.img = f.img; r.img2 = f.img2 || ''; }
+    save(); closeSheet(); toast('Zapisano'); render();
+  },
   favList: () => {
     const pool = favPool();
     sheet('<h1 style="font-size:22px">Ulubione produkty</h1><div class="muted" style="margin-bottom:8px">Produkty z gwiazdką oraz kupione z paragonów co najmniej 3 razy. Dodasz je do listy przyciskiem z koszykiem.</div>' +
-      (pool.length ? pool.map(f => '<div class="prow"><div class="grow"><div class="t">' + esc(f.name) + '</div><div class="muted">' + pcatName(f.cat) + (f.price ? ' · ost. ' + money(f.price) : '') + (f.n ? ' · kupione ' + f.n + '×' : '') + '</div></div><button class="ibtn round" style="box-shadow:none;background:transparent;color:var(--acc)" data-act="favAdd" data-n="' + esc(f.norm) + '" aria-label="Dodaj do zakupów">' + ic('cart', 22, 1.9) + '</button><button class="ibtn round" style="box-shadow:none;background:transparent;color:#F2B21B" data-act="favDel" data-n="' + esc(f.norm) + '" aria-label="Usuń z ulubionych">' + ic('star', 22, 1.7, 'currentColor') + '</button></div>').join('') : '<div class="muted card">Brak ulubionych. Oznacz gwiazdką produkty na ekranie sprawdzania paragonu.</div>'));
+      (pool.length ? pool.map(f => favRow(f)).join('') : '<div class="muted card">Brak ulubionych. Oznacz gwiazdką produkty na ekranie sprawdzania paragonu.</div>'));
   },
-  favDel: (d) => { const f = favPool().find(x => x.norm === d.n); if (f) { S.favs = (S.favs || []).filter(x => x.norm !== d.n); S.favOff = S.favOff || []; if (!S.favOff.includes(d.n)) S.favOff.push(d.n); save(); } if (route.v === 'favs') render(); else A.favList(); if (route.v === 'shopping') render(); },
+  favDel: (d) => { if (d.close) closeSheet(); const f = favPool().find(x => x.norm === d.n); if (f) { S.favs = (S.favs || []).filter(x => x.norm !== d.n); S.favOff = S.favOff || []; if (!S.favOff.includes(d.n)) S.favOff.push(d.n); save(); } if (route.v === 'favs') render(); else A.favList(); if (route.v === 'shopping') render(); },
   expStar: (d) => { syncExp(); const it = expDraft.items[+d.i]; if (!String(it.name).trim()) { toast('Najpierw wpisz nazwę produktu'); return; } const on = favToggle(it.name, it.cat, it.price); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); openExpenseEditor(expDraft, true); },
   shopFav: (d) => { const x = byId(S.shopping, d.id); if (!x) return; const on = favToggle(x.text, pcatOf(x), ''); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); closeSheet(); render(); },
   chatChoice: (d) => { const ta = $('#chatIn'); if (ta) { ta.value = 'dodaj ' + d.t; A.chatSend(); } },

@@ -288,3 +288,6 @@ nav button.center.on{background:none}
 .pc-auto{--rb:#E2E8EE;--rf:#46596B}
 
 .pc-rosliny{--rb:#DDF3D4;--rf:#3C8A2A}
+
+/* długie nazwy bez spacji nie mogą rozpychać ekranu */
+.prow .grow,.card .t,.rtitle,h1,h2,h3{min-width:0;overflow-wrap:anywhere}

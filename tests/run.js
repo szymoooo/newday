@@ -276,6 +276,8 @@ T('Asystent: odpowiedź i akcja dodania do zakupów', async () => {
   } finally { await browser.close(); }
 });
 
+require('./more')(T, ev, today);
+
 (async () => {
   const only = process.argv[2];
   let fail = 0;

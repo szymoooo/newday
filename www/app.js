@@ -1022,9 +1022,9 @@ function vRecipe(id) {
 function vShopping() {
   const items = S.shopping;
   const todo = items.filter(x => !x.done), done = items.filter(x => x.done);
-  const est = todo.reduce((a, x) => a + priceFor(x.text), 0);
+  const est = todo.reduce((a, x) => a + ((priceInfo(x.text) || {}).est || 0), 0);
   const row = (x, show) => '<div class="prow"><button class="check ' + (x.done ? 'on' : '') + '" data-act="shopTick" data-id="' + x.id + '" aria-label="Kupione">' + (x.done ? ic('check', 18, 3) : '') + '</button>' +
-    '<div class="grow ' + (x.done ? 'done' : '') + '" data-act="shopCat" data-id="' + x.id + '"><div class="t">' + (isFav(normName(x.text)) ? '<span style="color:#E8A400">★</span> ' : '') + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + (show ? '<div style="margin-top:4px">' + pcatTag(pcatOf(x)) + '</div>' : '') + '</div>' + (priceFor(x.text) ? '<div style="font-weight:700;font-size:13px;white-space:nowrap;margin-right:2px;color:var(--acc);background:rgba(238,122,56,.12);padding:4px 9px;border-radius:99px">' + money(priceFor(x.text)) + '</div>' : '') +
+    '<div class="grow ' + (x.done ? 'done' : '') + '" data-act="shopCat" data-id="' + x.id + '"><div class="t">' + (isFav(normName(x.text)) ? '<span style="color:#E8A400">★</span> ' : '') + esc(x.text) + '</div>' + (x.from ? '<div class="muted">' + esc(x.from) + '</div>' : '') + (show ? '<div style="margin-top:4px">' + pcatTag(pcatOf(x)) + '</div>' : '') + '</div>' + (priceInfo(x.text) ? '<div style="font-weight:700;font-size:13px;white-space:nowrap;margin-right:2px;color:var(--acc);background:rgba(238,122,56,.12);padding:4px 9px;border-radius:99px">' + priceInfo(x.text).label + '</div>' : '') +
     '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="shopDel" data-id="' + x.id + '" aria-label="Usuń">' + ic('x', 22, 2) + '</button></div>';
   const groups = {}; todo.forEach(x => { const k = pcatOf(x); (groups[k] = groups[k] || []).push(x); });
   const body = PCATS.filter(c => groups[c[0]]).map(c => '<div class="shgrp pc-' + c[0] + '"><span class="ri">' + ic('p_' + c[0], 16, 2.2) + '</span>' + c[1] + ' <span style="opacity:.7">(' + groups[c[0]].length + ')</span></div><div class="card flush" style="margin-top:6px">' + groups[c[0]].map(x => row(x, false)).join('') + '</div>').join('');
@@ -1034,7 +1034,7 @@ function vShopping() {
     '<button class="ibtn round" style="background:var(--acc);color:#fff;width:52px;height:52px;box-shadow:0 6px 16px rgba(200,69,26,.3)" data-act="shopAdd" aria-label="Dodaj">' + ic('plus', 26, 2.4) + '</button></div><div id="favSug" class="rbar" style="padding:8px 2px 0"></div>' +
     '<div class="btns" style="margin-top:6px"><button class="btn sm ghost" data-act="favList">⭐ Ulubione (' + favPool().length + ')</button></div>' +
     (body || '<div class="card flush" style="margin-top:16px"><div class="muted" style="padding:16px 0">Lista pusta</div></div>') +
-    (done.length ? '<h2 style="color:var(--mut)">W koszyku</h2><div class="card flush">' + done.map(x => row(x, true)).join('') + '</div>' : '');
+    (done.length ? '<h2 style="color:var(--mut)">W koszyku</h2><div class="card flush">' + done.map(x => row(x, false)).join('') + '</div>' : '');
 }
 
 /* ---------- ulubione produkty (z paragonów i z gwiazdki) ---------- */
@@ -1042,7 +1042,7 @@ function favStats() {
   const m = {};
   (S.expenses || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.ts || 0) - (b.ts || 0)).forEach(e => (e.items || []).forEach(it => {
     const n = it.norm || normName(it.name); if (!n) return;
-    const r = m[n] || (m[n] = { n: 0 }); r.n++; r.name = it.name; r.price = parsePrice(it.price); r.cat = it.cat; r.last = e.date; if (it.type) r.type = it.type;
+    const r = m[n] || (m[n] = { n: 0 }); r.n++; r.name = it.name; r.price = parsePrice(it.price); r.cat = it.cat; r.last = e.date; r.unit = it.unit || ''; r.unitPrice = it.unitPrice || 0; if (it.type) r.type = it.type;
   }));
   return m;
 }
@@ -1068,6 +1068,13 @@ function favToggle(name, cat, price) {
   S.favs = S.favs || []; S.favOff = S.favOff || [];
   if (isFav(n)) { S.favs = S.favs.filter(f => f.norm !== n); if (!S.favOff.includes(n)) S.favOff.push(n); save(); return false; }
   S.favOff = S.favOff.filter(x => x !== n); S.favs.push({ id: uid(), name: String(name).trim(), norm: n, cat: validPcat(cat) || guessPcat(name), price: parsePrice(price) }); save(); return true;
+}
+function priceInfo(t) {
+  const n = normName(t); if (!n) return null;
+  const st = favStats(); let r = st[n];
+  if (!r) { const hit = Object.keys(st).filter(k => st[k].price && k.split(' ').includes(n)); if (hit.length === 1) r = st[hit[0]]; }
+  if (r && r.unit === 'kg' && r.unitPrice) return { label: money(r.unitPrice) + '/kg', est: 0 };
+  const v = priceFor(t); return v ? { label: money(v), est: v } : null;
 }
 function priceFor(t) {
   const n = normName(t); if (!n) return 0;
@@ -1121,7 +1128,7 @@ function openExpenseEditor(e, keep) {
   const rows = e.items.map((it, i) => { const c = validPcat(it.cat) || guessPcat(it.name);
     return '<div class="xrow"><div class="row" style="gap:8px"><div class="grow"><input id="xn' + i + '" value="' + esc(it.name) + '" placeholder="Produkt" style="margin:4px 0"></div><div style="width:84px"><input id="xp' + i + '" inputmode="decimal" value="' + esc(String(it.price === '' || it.price == null ? '' : String(it.price).replace('.', ','))) + '" placeholder="0,00" style="margin:4px 0;text-align:right"></div>' +
       '<button class="ibtn round" style="box-shadow:none;background:transparent;color:' + (isFav(normName(it.name)) ? '#F2B21B' : '#B8ADA4') + '" data-act="expStar" data-i="' + i + '" aria-label="Ulubione">' + ic('star', 22, 1.7, isFav(normName(it.name)) ? 'currentColor' : 'none') + '</button><button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="expDelRow" data-i="' + i + '" aria-label="Usuń pozycję">' + ic('x', 20, 2) + '</button></div>' +
-      '<div class="rbar" style="padding:0 0 6px">' + PCATS.map(k => '<button type="button" class="rf pc-' + k[0] + (k[0] === c ? ' sel' : '') + '" data-act="expPick" data-i="' + i + '" data-c="' + k[0] + '" style="padding:3px 10px 3px 4px"><span class="ri" style="width:22px;height:22px">' + ic('p_' + k[0], 13, 2.2) + '</span>' + k[1] + '</button>').join('') + '</div></div>'; }).join('');
+      (it.unit === 'kg' && it.unitPrice ? '<div class="muted" style="margin:0 0 6px 2px">' + (it.qty ? String(it.qty).replace('.', ',') + ' kg × ' : '') + money(it.unitPrice) + '/kg</div>' : '') + '<div class="rbar" style="padding:0 0 6px">' + PCATS.map(k => '<button type="button" class="rf pc-' + k[0] + (k[0] === c ? ' sel' : '') + '" data-act="expPick" data-i="' + i + '" data-c="' + k[0] + '" style="padding:3px 10px 3px 4px"><span class="ri" style="width:22px;height:22px">' + ic('p_' + k[0], 13, 2.2) + '</span>' + k[1] + '</button>').join('') + '</div></div>'; }).join('');
   const total = e.items.reduce((a, it) => a + parsePrice(it.price), 0);
   sheet('<h1 style="font-size:22px">' + (e.id ? 'Edytuj wydatek' : e.src === 'receipt' ? 'Sprawdź paragon' : 'Nowy wydatek') + '</h1>' +
     (e.src === 'receipt' && !e.id ? '<div class="muted" style="margin-bottom:6px">AI mogło się pomylić - popraw nazwy, ceny i kategorie, a potem zapisz.</div>' : '') +
@@ -1136,10 +1143,10 @@ async function scanReceipt(cam) {
   const img = await pickImage(1800, cam); if (!img) return;
   busy(true, 'Czytam paragon…');
   try {
-    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em: {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","type":"ogólny rodzaj produktu jednym słowem, np. serek, jogurt, szynka, mleko","price":0.0,"cat":"klucz kategorii"}]}. Cena to kwota pozycji po rabatach (łączna dla ilości), z kropką jako separatorem. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
+    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em: {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","type":"ogólny rodzaj produktu jednym słowem, np. serek, jogurt, szynka, mleko","price":0.0,"unit":"kg lub szt","qty":0.0,"unitPrice":0.0,"cat":"klucz kategorii"}]}. "price" to ŁĄCZNA kwota pozycji po rabatach (to, co faktycznie zapłacono za tę pozycję), z kropką jako separatorem - NIGDY cena za kilogram. Dla towarów na wagę (warzywa, owoce, wędliny, ser na wagę) ustaw unit="kg", qty=waga w kg (np. 0.350) i unitPrice=cena za 1 kg z paragonu. Dla towarów na sztuki unit="szt", qty=liczba sztuk, unitPrice=cena sztuki. Jeśli nie ma tych danych, pomiń pola unit/qty/unitPrice. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
     const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Odczytaj wszystkie pozycje z paragonu.' }] }], max: 4000 });
     const j = extractJSON(out);
-    const items = (j.items || []).filter(it => it && it.name).map(it => ({ name: String(it.name).trim(), price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), type: String(it.type || '').toLowerCase().trim().slice(0, 30) }));
+    const items = (j.items || []).filter(it => it && it.name).map(it => ({ name: String(it.name).trim(), price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), type: String(it.type || '').toLowerCase().trim().slice(0, 30), unit: /^kg$/i.test(it.unit || '') ? 'kg' : '', qty: parsePrice(it.qty) || 0, unitPrice: parsePrice(it.unitPrice) || 0 })).map(it => { if (it.unit === 'kg' && it.qty && it.unitPrice) { const calc = Math.round(it.qty * it.unitPrice * 100) / 100; if (!it.price || Math.abs(it.price - calc) > calc * 0.03) it.price = calc; } return it; });
     if (!items.length) throw new Error('nie znalazłem pozycji - zrób ostrzejsze zdjęcie całego paragonu');
     busy(false);
     openExpenseEditor({ id: '', date: /^\d{4}-\d{2}-\d{2}$/.test(j.date || '') ? j.date : today(), store: j.store || '', items, src: 'receipt' });
@@ -2225,7 +2232,7 @@ const A = {
     syncExp(); const e = expDraft;
     e.items = e.items.filter(it => String(it.name).trim() || parsePrice(it.price));
     if (!e.items.length) { toast('Dodaj choć jedną pozycję'); return; }
-    e.items = e.items.map(it => ({ name: String(it.name).trim() || 'Pozycja', price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), norm: normName(it.name), type: it.type || '' }));
+    e.items = e.items.map(it => ({ name: String(it.name).trim() || 'Pozycja', price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), norm: normName(it.name), type: it.type || '', unit: it.unit || '', qty: it.qty || 0, unitPrice: it.unitPrice || 0 }));
     e.total = e.items.reduce((a, it) => a + it.price, 0);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(e.date)) e.date = today();
     if (e.id) { const i = S.expenses.findIndex(x => x.id === e.id); if (i >= 0) S.expenses[i] = e; else S.expenses.unshift(e); }

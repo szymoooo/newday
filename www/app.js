@@ -1800,7 +1800,7 @@ async function handleSubstack(url) {
 }
 
 async function handleUrl(url, extra) {
-  extra = extra || '';
+  extra = extra || ''; let aiFail = null;
   if (SUBSTACK_RE.test(domainOf(url)) && await handleSubstack(url)) return;
   const meta = await getMeta(url);
   const html = meta.html;
@@ -1818,7 +1818,7 @@ async function handleUrl(url, extra) {
       try {
         const ai = await aiAnalyze((meta.title ? meta.title + '\n' : '') + text);
         if (ai.type === 'recipe' && ai.recipe) { const r = aiToRecipe(ai.recipe); r.source = url; r.image = await picture(); openRecipeEditor(r, true); return; }
-      } catch (e) { /* zapisz jako link */ }
+      } catch (e) { aiFail = e; }
     } else if (looksLikeRecipe(text)) {
       const r = parseRecipeText(text); if (meta.title) r.title = meta.title;
       r.source = url; r.image = await picture(); openRecipeEditor(r, true); return;
@@ -1830,11 +1830,13 @@ async function handleUrl(url, extra) {
       if (ai.type === 'recipe' && ai.recipe && (ai.recipe.groups || []).length) { const r = aiToRecipe(ai.recipe); r.source = url; r.image = await picture(); openRecipeEditor(r, true); return; }
       addLink({ url, title: (ai.link && ai.link.title) || meta.title, tags: (ai.link && ai.link.tags) || [], note: extra, img: await picture() });
       return;
-    } catch (e) { /* zapisz zwykły link */ }
+    } catch (e) { aiFail = e; }
   }
   const firstLine = extra.split(/\n/)[0].trim();
   const title = meta.title || (firstLine && firstLine.length < 120 ? firstLine : '') || (sourceOf(url) + ' - zapisany link');
   addLink({ url, title, tags: [], note: extra && extra !== title ? extra.slice(0, 300) : '', img: await picture() });
+  if (aiFail) setTimeout(() => toast('Zapisano tylko jako link - AI nie odpowiedziało (' + String(aiFail.message || aiFail).slice(0, 90) + '). Spróbuj później.'), 600);
+  else if (!html) setTimeout(() => toast('Zapisano tylko jako link - nie udało się pobrać strony.'), 600);
 }
 
 function routeAI(ai, text, img) {

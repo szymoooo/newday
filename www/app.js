@@ -1159,8 +1159,7 @@ async function scanReceipt(cam) {
 let favDraft = [];
 function favRow(f, cardAct) {
   const a = ' data-act="favCard" data-n="' + esc(f.norm) + '"';
-  return '<div class="prow">' + (f.img ? '<img src="' + f.img + '" alt=""' + a + ' style="width:50px;height:50px;border-radius:10px;object-fit:cover;flex:none;background:#fff">' : '') +
-    '<div class="grow"' + a + '><div class="t">' + esc(f.name) + (f.size ? ' <span class="muted" style="font-weight:600">· ' + esc(f.size) + '</span>' : '') + '</div><div class="muted">' + pcatName(f.cat) + (f.price ? ' · ost. ' + money(f.price) : '') + (f.n ? ' · kupione ' + f.n + '×' : '') + '</div>' + (f.info ? '<div class="muted" style="margin-top:2px">' + esc(f.info) + '</div>' : '') + '</div>' +
+  return '<div class="prow"><div class="grow"' + a + '><div class="t">' + esc(f.name) + (f.size ? ' <span class="muted" style="font-weight:600">· ' + esc(f.size) + '</span>' : '') + '</div><div class="muted">' + pcatName(f.cat) + (f.price ? ' · ost. ' + money(f.price) : '') + (f.n ? ' · kupione ' + f.n + '×' : '') + '</div>' + (f.info ? '<div class="muted" style="margin-top:2px">' + esc(f.info) + '</div>' : '') + '</div>' +
     '<button class="ibtn round" style="box-shadow:none;background:transparent;color:var(--acc)" data-act="favAdd" data-n="' + esc(f.norm) + '" aria-label="Dodaj do zakupów">' + ic('cart', 22, 1.9) + '</button>' +
     '<button class="ibtn round" style="box-shadow:none;background:transparent;color:#F2B21B" data-act="favDel" data-n="' + esc(f.norm) + '" aria-label="Usuń z ulubionych">' + ic('star', 22, 1.7, 'currentColor') + '</button></div>';
 }
@@ -1219,7 +1218,7 @@ function favCardSheet(n) {
     '<label>Nazwa</label><input id="fcName" value="' + esc(f.name) + '"><label>Pojemność / gramatura</label><input id="fcSize" value="' + esc(f.size || '') + '" placeholder="np. 1,75 l"><label>Opis</label><textarea id="fcInfo" rows="3" placeholder="Opis produktu">' + esc(f.info || '') + '</textarea>' +
     '<label>Kategoria</label><select id="fcCat">' + PCATS.map(c => '<option value="' + c[0] + '"' + (c[0] === f.cat ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select>' +
     '<div class="muted" style="margin-top:10px">' + (st.unit === 'kg' && st.unitPrice ? 'Cena: ' + money(st.unitPrice) + '/kg' : f.price ? 'Ostatnia cena: ' + money(f.price) : 'Brak ceny - pojawi się po zeskanowaniu paragonu') + (f.n ? ' · kupione ' + f.n + '×' : '') + (st.last ? ' · ostatnio ' + st.last : '') + '</div>' +
-    '<div class="btns foot"><button class="btn" data-act="favCardSave" data-n="' + esc(n) + '">Zapisz</button><button class="btn ghost" data-act="favAdd" data-n="' + esc(n) + '" data-close="1">🛒 Do zakupów</button><button class="btn ghost" data-act="favDel" data-n="' + esc(n) + '" data-close="1">☆ Usuń z ulubionych</button></div>');
+    '<div class="btns foot"><button class="btn" data-act="favCardSave" data-n="' + esc(n) + '">Zapisz</button><button class="btn ghost" data-act="favAdd" data-n="' + esc(n) + '" data-close="1">🛒 Dodaj</button><button class="btn ghost" data-act="favDel" data-n="' + esc(n) + '" data-close="1">Usuń</button></div>');
 }
 function vMore() {
   return hdr('Więcej') + '<div class="grid">' +

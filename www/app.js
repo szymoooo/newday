@@ -1048,7 +1048,7 @@ function favStats() {
 }
 function favPool() {
   const st = favStats(), off = S.favOff || [], out = {};
-  (S.favs || []).forEach(f => { const s = st[f.norm]; out[f.norm] = { norm: f.norm, name: (s && s.name) || f.name, cat: (s && s.cat) || f.cat, price: s ? s.price : f.price, n: s ? s.n : 0, manual: true, hint: (s && s.type) || '' }; });
+  (S.favs || []).forEach(f => { const s = st[f.norm]; out[f.norm] = { norm: f.norm, name: (s && s.name) || f.name, cat: (s && s.cat) || f.cat, price: s ? s.price : f.price, n: s ? s.n : 0, manual: true, size: f.size || '', info: f.info || '', hint: (s && s.type) || '' }; });
   Object.keys(st).forEach(n => { if (st[n].n >= 3 && !off.includes(n) && !out[n]) out[n] = { norm: n, name: st[n].name, cat: st[n].cat, price: st[n].price, n: st[n].n, hint: st[n].type || '' }; });
   const al = S.favAlias || {}; Object.values(out).forEach(f => { f.hint = (f.hint + ' ' + (al[f.norm] || []).join(' ')).trim(); });
   return Object.values(out).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'pl'));
@@ -1161,10 +1161,20 @@ async function favScan(cam) {
   const img = await pickImage(1400, cam); if (!img) return;
   busy(true, 'Rozpoznaję produkt…');
   try {
-    const sys = 'Rozpoznajesz produkty spożywcze i inne ze zdjęcia opakowania lub półki. Odpowiedz WYŁĄCZNIE JSON-em: {"items":[{"name":"marka + nazwa + wariant po polsku, np. Zott Jogobella malinowa","type":"ogólny rodzaj jednym słowem, np. jogurt","cat":"klucz kategorii","size":"gramatura lub null"}]}. Wypisz każdy wyraźnie widoczny produkt (maks. 8). Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
-    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Co to za produkt(y)?' }] }], max: 800 });
+    const sys = 'Rozpoznajesz GŁÓWNY produkt na zdjęciu - ten na pierwszym planie, największy i najbardziej widoczny, na którym skupiony jest aparat. IGNORUJ tło i przedmioty dookoła (monitor, telefon, długopis, słuchawki, biurko itp.) oraz produkty zasłonięte lub częściowo widoczne. Zwróć dokładnie JEDEN produkt, chyba że na zdjęciu wyraźnie jest kilka takich samych ważnych produktów obok siebie (wtedy maks. 3). Odpowiedz WYŁĄCZNIE JSON-em: {"items":[{"name":"marka + nazwa + wariant po polsku, np. Coca-Cola Original Taste","type":"ogólny rodzaj jednym słowem, np. cola","cat":"klucz kategorii","size":"pojemność lub gramatura widoczna na opakowaniu, np. 1,75 l, albo null","info":"krótki opis po polsku, np. Napój gazowany"}]}. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
+    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Jaki jest główny produkt na zdjęciu?' }] }], max: 600 });
     const j = extractJSON(out);
-    favDraft = (j.items || []).filter(it => it && it.name).slice(0, 8).map(it => ({ name: String(it.name).trim(), type: String(it.type || '').toLowerCase().trim().slice(0, 30), cat: validPcat(it.cat) || guessPcat(it.name), on: true }));
+    favDraft = (j.items || []).filter(it => it && it.name).slice(0, 3).map(it => ({ name: String(it.name).trim(), type: String(it.type || '').toLowerCase().trim().slice(0, 30), cat: validPcat(it.cat) || guessPcat(it.name), size: it.size && it.size !== 'null' ? String(it.size).trim() : '', info: String(it.info || '').trim(), on: true }));
+    if (favDraft.length) {
+      busy(true, 'Szukam informacji o produkcie…');
+      try {
+        await Promise.all(favDraft.map(async d => {
+          const found = await webSearch(d.name + (d.size ? ' ' + d.size : '') + ' produkt pojemność gramatura opis');
+          const o2 = await claude({ system: 'Na podstawie wyników wyszukiwania uzupełnij dane produktu. Odpowiedz WYŁĄCZNIE JSON-em: {"size":"najczęstsza pojemność/gramatura tego opakowania, np. 1,75 l","info":"1-2 krótkie zdania po polsku: czym jest produkt, rodzaj, producent, ewentualnie ważna cecha"}. Nie zgaduj - jeśli czegoś nie ma w wynikach, zostaw obecną wartość.', messages: [{ role: 'user', content: 'Produkt: ' + d.name + (d.size ? ' (z opakowania: ' + d.size + ')' : '') + '\nObecny opis: ' + d.info + '\n\nWYNIKI:\n' + String(found).slice(0, 4000) }], max: 300 });
+          const r = extractJSON(o2); if (r) { if (r.size && !d.size) d.size = String(r.size).trim(); if (r.info) d.info = String(r.info).trim().slice(0, 220); }
+        }));
+      } catch (e) { /* bez informacji z internetu zostają dane ze zdjęcia */ }
+    }
     busy(false);
     if (!favDraft.length) { toast('Nie rozpoznałem produktu - zrób ostrzejsze zdjęcie opakowania'); return; }
     favDraftSheet();
@@ -1173,10 +1183,10 @@ async function favScan(cam) {
 function favDraftSheet() {
   sheet('<h1 style="font-size:22px">Rozpoznane produkty</h1><div class="muted" style="margin-bottom:8px">Popraw nazwę i kategorię, odznacz to, czego nie chcesz.</div>' +
     favDraft.map((d, i) => '<div class="card" style="margin-bottom:8px"><div class="row"><button type="button" class="check ' + (d.on ? 'on' : '') + '" data-act="favDraftTick" data-i="' + i + '" aria-label="Dodaj">' + (d.on ? ic('check', 18, 3) : '') + '</button><input class="grow" id="fdn' + i + '" value="' + esc(d.name) + '" aria-label="Nazwa"></div>' +
-      '<select id="fdc' + i + '" style="margin-top:8px">' + PCATS.map(c => '<option value="' + c[0] + '"' + (c[0] === d.cat ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select></div>').join('') +
+      '<input id="fds' + i + '" value="' + esc(d.size || '') + '" placeholder="Pojemność / gramatura" style="margin-top:8px" aria-label="Pojemność"><textarea id="fdi' + i + '" rows="2" placeholder="Opis" style="margin-top:8px" aria-label="Opis">' + esc(d.info || '') + '</textarea><select id="fdc' + i + '" style="margin-top:8px">' + PCATS.map(c => '<option value="' + c[0] + '"' + (c[0] === d.cat ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select></div>').join('') +
     '<div class="btns foot"><button class="btn" data-act="favDraftSave">⭐ Dodaj do ulubionych</button></div>');
 }
-function favDraftSync() { favDraft.forEach((d, i) => { const n = $('#fdn' + i), c = $('#fdc' + i); if (n) d.name = n.value.trim(); if (c) d.cat = c.value; }); }
+function favDraftSync() { favDraft.forEach((d, i) => { const n = $('#fdn' + i), c = $('#fdc' + i), z = $('#fds' + i), f = $('#fdi' + i); if (n) d.name = n.value.trim(); if (c) d.cat = c.value; if (z) d.size = z.value.trim(); if (f) d.info = f.value.trim(); }); }
 function vMore() {
   return hdr('Więcej') + '<div class="grid">' +
     tile('go', 'cal', 'c-blue', 'Kalendarz', 'events') + tile('go', 'note', 'c-yellow', 'Notatki', 'notes') + tile('go', 'wallet', 'c-green', 'Budżet', 'budget') + tile('go', 'star', 'c-yellow', 'Ulubione produkty', 'favs') + tile('go', 'gear', 'c-pink', 'Ustawienia', 'settings') + '</div>';
@@ -2160,7 +2170,8 @@ const A = {
     favDraft.filter(d => d.on && d.name).forEach(d => {
       const k = normName(d.name); if (!k) return;
       S.favOff = (S.favOff || []).filter(x => x !== k);
-      if (!(S.favs || (S.favs = [])).some(f => f.norm === k)) S.favs.push({ id: uid(), name: d.name, norm: k, cat: validPcat(d.cat) || guessPcat(d.name), price: 0 });
+      if (!(S.favs || (S.favs = [])).some(f => f.norm === k)) S.favs.push({ id: uid(), name: d.name, norm: k, cat: validPcat(d.cat) || guessPcat(d.name), price: 0, size: d.size || '', info: d.info || '' });
+      else { const f0 = S.favs.find(f => f.norm === k); if (d.size) f0.size = d.size; if (d.info) f0.info = d.info; }
       if (d.type) { const al = S.favAlias || (S.favAlias = {}); al[k] = Array.from(new Set((al[k] || []).concat([d.type]))); }
       n++;
     });

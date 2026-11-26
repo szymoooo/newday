@@ -1048,7 +1048,7 @@ function favStats() {
 }
 function favPool() {
   const st = favStats(), off = S.favOff || [], out = {};
-  (S.favs || []).forEach(f => { const s = st[f.norm]; out[f.norm] = { norm: f.norm, name: (s && s.name) || f.name, cat: (s && s.cat) || f.cat, price: s ? s.price : f.price, n: s ? s.n : 0, manual: true, size: f.size || '', info: f.info || '', hint: (s && s.type) || '' }; });
+  (S.favs || []).forEach(f => { const s = st[f.norm]; out[f.norm] = { norm: f.norm, name: (s && s.name) || f.name, cat: (s && s.cat) || f.cat, price: s ? s.price : f.price, n: s ? s.n : 0, manual: true, size: f.size || '', info: f.info || '', img: f.img || '', hint: (s && s.type) || '' }; });
   Object.keys(st).forEach(n => { if (st[n].n >= 3 && !off.includes(n) && !out[n]) out[n] = { norm: n, name: st[n].name, cat: st[n].cat, price: st[n].price, n: st[n].n, hint: st[n].type || '' }; });
   const al = S.favAlias || {}; Object.values(out).forEach(f => { f.hint = (f.hint + ' ' + (al[f.norm] || []).join(' ')).trim(); });
   return Object.values(out).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, 'pl'));
@@ -1156,15 +1156,26 @@ function vFavs() {
     '<div class="muted" style="margin-bottom:8px">Produkty ze zdjęć, z gwiazdką i kupione z paragonów co najmniej 3 razy. Dotknij nazwę, żeby dodać do zakupów.</div>' +
     (pool.length ? '<div class="card flush">' + pool.map(f => '<div class="prow"><div class="grow" data-act="favAdd" data-n="' + esc(f.norm) + '"><div class="t">' + esc(f.name) + '</div><div class="muted">' + pcatName(f.cat) + (f.price ? ' · ost. ' + money(f.price) : '') + (f.n ? ' · kupione ' + f.n + '×' : '') + '</div></div><button class="ibtn round" style="box-shadow:none;background:transparent;color:#F2B21B" data-act="favDel" data-n="' + esc(f.norm) + '" aria-label="Usuń z ulubionych">' + ic('star', 22, 1.7, 'currentColor') + '</button></div>').join('') + '</div>' : '<div class="card"><div class="muted">Brak ulubionych. Zrób zdjęcie produktu, a dodam go tutaj.</div></div>');
 }
+let favFront = '';
+const thumbOf = (url, w) => new Promise(res => { const im = new Image(); im.onload = () => { const k = Math.min(1, w / Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width * k); c.height = Math.round(im.height * k); c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); res(c.toDataURL('image/jpeg', 0.7)); }; im.onerror = () => res(''); im.src = url; });
 async function favScan(cam) {
   if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
   const img = await pickImage(1400, cam); if (!img) return;
+  favFront = img;
+  sheet('<h1 style="font-size:22px">Teraz tył opakowania</h1><div class="muted" style="margin-bottom:10px">Zrób zdjęcie tyłu (skład, waga, producent) - dzięki temu będę mieć pełne dane. Przód już mam ✓</div><div class="btns"><button class="btn" data-act="favBackCam">📷 Zdjęcie tyłu</button><button class="btn ghost" data-act="favBackGal">🖼 Z galerii</button></div><div class="btns"><button class="btn ghost" data-act="favBackSkip">Pomiń - tylko przód</button></div>');
+}
+async function favBack(cam) {
+  const back = await pickImage(1400, cam); if (!back) return;
+  closeSheet(); favRun(favFront, back);
+}
+async function favRun(img, back) {
   busy(true, 'Rozpoznaję produkt…');
   try {
-    const sys = 'Rozpoznajesz GŁÓWNY produkt na zdjęciu - ten na pierwszym planie, największy i najbardziej widoczny, na którym skupiony jest aparat. IGNORUJ tło i przedmioty dookoła (monitor, telefon, długopis, słuchawki, biurko itp.) oraz produkty zasłonięte lub częściowo widoczne. Zwróć dokładnie JEDEN produkt, chyba że na zdjęciu wyraźnie jest kilka takich samych ważnych produktów obok siebie (wtedy maks. 3). Odpowiedz WYŁĄCZNIE JSON-em: {"items":[{"name":"marka + nazwa + wariant po polsku, np. Coca-Cola Original Taste","type":"ogólny rodzaj jednym słowem, np. cola","cat":"klucz kategorii","size":"pojemność lub gramatura widoczna na opakowaniu, np. 1,75 l, albo null","info":"krótki opis po polsku, np. Napój gazowany"}]}. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
-    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Jaki jest główny produkt na zdjęciu?' }] }], max: 600 });
+    const sys = 'Rozpoznajesz GŁÓWNY produkt na zdjęciu - ten na pierwszym planie, największy i najbardziej widoczny, na którym skupiony jest aparat. IGNORUJ tło i przedmioty dookoła (monitor, telefon, długopis, słuchawki, biurko itp.) oraz produkty zasłonięte lub częściowo widoczne. Zwróć dokładnie JEDEN produkt, chyba że na zdjęciu wyraźnie jest kilka takich samych ważnych produktów obok siebie (wtedy maks. 3). Odpowiedz WYŁĄCZNIE JSON-em: {"items":[{"name":"marka + nazwa + wariant po polsku, np. Coca-Cola Original Taste","type":"ogólny rodzaj jednym słowem, np. cola","cat":"klucz kategorii","size":"pojemność lub gramatura widoczna na opakowaniu, np. 1,75 l, albo null","info":"krótki opis po polsku (rodzaj, producent, najważniejsze cechy ze składu lub etykiety), np. Napój gazowany, Coca-Cola HBC"}]}. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
+    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img)].concat(back ? [imgBlock(back)] : []).concat([{ type: 'text', text: back ? 'Zdjęcie 1 to przód, zdjęcie 2 to tył tego samego produktu. Jaki to produkt? Weź pojemność/gramaturę, producenta i skład z tyłu.' : 'Jaki jest główny produkt na zdjęciu?' }]) }], max: 700 });
     const j = extractJSON(out);
     favDraft = (j.items || []).filter(it => it && it.name).slice(0, 3).map(it => ({ name: String(it.name).trim(), type: String(it.type || '').toLowerCase().trim().slice(0, 30), cat: validPcat(it.cat) || guessPcat(it.name), size: it.size && it.size !== 'null' ? String(it.size).trim() : '', info: String(it.info || '').trim(), on: true }));
+    if (favDraft.length) { const th = await thumbOf(img, 160); favDraft.forEach(d => d.img = th); }
     if (favDraft.length) {
       busy(true, 'Szukam informacji o produkcie…');
       try {
@@ -1182,7 +1193,7 @@ async function favScan(cam) {
 }
 function favDraftSheet() {
   sheet('<h1 style="font-size:22px">Rozpoznane produkty</h1><div class="muted" style="margin-bottom:8px">Popraw nazwę i kategorię, odznacz to, czego nie chcesz.</div>' +
-    favDraft.map((d, i) => '<div class="card" style="margin-bottom:8px"><div class="row"><button type="button" class="check ' + (d.on ? 'on' : '') + '" data-act="favDraftTick" data-i="' + i + '" aria-label="Dodaj">' + (d.on ? ic('check', 18, 3) : '') + '</button><input class="grow" id="fdn' + i + '" value="' + esc(d.name) + '" aria-label="Nazwa"></div>' +
+    favDraft.map((d, i) => '<div class="card" style="margin-bottom:8px">' + (d.img ? '<img src="' + d.img + '" alt="" style="height:90px;border-radius:10px;margin-bottom:8px">' : '') + '<div class="row"><button type="button" class="check ' + (d.on ? 'on' : '') + '" data-act="favDraftTick" data-i="' + i + '" aria-label="Dodaj">' + (d.on ? ic('check', 18, 3) : '') + '</button><input class="grow" id="fdn' + i + '" value="' + esc(d.name) + '" aria-label="Nazwa"></div>' +
       '<input id="fds' + i + '" value="' + esc(d.size || '') + '" placeholder="Pojemność / gramatura" style="margin-top:8px" aria-label="Pojemność"><textarea id="fdi' + i + '" rows="2" placeholder="Opis" style="margin-top:8px" aria-label="Opis">' + esc(d.info || '') + '</textarea><select id="fdc' + i + '" style="margin-top:8px">' + PCATS.map(c => '<option value="' + c[0] + '"' + (c[0] === d.cat ? ' selected' : '') + '>' + c[1] + '</option>').join('') + '</select></div>').join('') +
     '<div class="btns foot"><button class="btn" data-act="favDraftSave">⭐ Dodaj do ulubionych</button></div>');
 }
@@ -2162,6 +2173,9 @@ const A = {
     if (route.v === 'shopping') render(); else toast('Dodano: ' + f.name);
     const e = $('#newItem'); if (e) e.focus();
   },
+  favBackCam: () => favBack(true),
+  favBackGal: () => favBack(false),
+  favBackSkip: () => { closeSheet(); favRun(favFront, null); },
   favScanCam: () => favScan(true),
   favScanGal: () => favScan(false),
   favDraftTick: (d) => { favDraftSync(); favDraft[+d.i].on = !favDraft[+d.i].on; favDraftSheet(); },
@@ -2170,8 +2184,8 @@ const A = {
     favDraft.filter(d => d.on && d.name).forEach(d => {
       const k = normName(d.name); if (!k) return;
       S.favOff = (S.favOff || []).filter(x => x !== k);
-      if (!(S.favs || (S.favs = [])).some(f => f.norm === k)) S.favs.push({ id: uid(), name: d.name, norm: k, cat: validPcat(d.cat) || guessPcat(d.name), price: 0, size: d.size || '', info: d.info || '' });
-      else { const f0 = S.favs.find(f => f.norm === k); if (d.size) f0.size = d.size; if (d.info) f0.info = d.info; }
+      if (!(S.favs || (S.favs = [])).some(f => f.norm === k)) S.favs.push({ id: uid(), name: d.name, norm: k, cat: validPcat(d.cat) || guessPcat(d.name), price: 0, size: d.size || '', info: d.info || '', img: d.img || '' });
+      else { const f0 = S.favs.find(f => f.norm === k); if (d.img) f0.img = d.img; if (d.size) f0.size = d.size; if (d.info) f0.info = d.info; }
       if (d.type) { const al = S.favAlias || (S.favAlias = {}); al[k] = Array.from(new Set((al[k] || []).concat([d.type]))); }
       n++;
     });

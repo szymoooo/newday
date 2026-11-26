@@ -312,3 +312,53 @@ module.exports = function (T, ev, today) {
     assert.strictEqual(await ev(page, () => S.notes[0].text.includes('Żółć 🍅')), true);
   }));
 };
+
+/* ===== OCHRONA PRZED WYCHODZENIEM TREŚCI POZA EKRAN ===== */
+module.exports.layout = function (T, ev, today) {
+  const L = 'Superdługanazwabezspacjiktórawychodzipozaekran'.repeat(3), LS = 'Bardzo długa nazwa ze spacjami która powinna się zawinąć w kilku liniach i nie rozpychać ekranu wcale';
+  const state = {
+    settings: { name: LS, apiKey: 'k', provider: 'gemini', model: 'm' },
+    shopping: [{ id: 's1', text: L, done: false, cat: 'warzywa' }, { id: 's2', text: LS, done: true, cat: 'mieso' }],
+    notes: [{ id: 'n1', text: L + ' ' + LS, pin: true, ts: 1 }],
+    links: [{ id: 'l1', url: 'https://example.com/' + 'a'.repeat(150), title: L, tags: [L], note: LS, ts: 1 }],
+    events: [{ id: 'e1', title: L, date: new Date().toISOString().slice(0, 10), time: '10:00', kind: 'event', note: LS }],
+    plants: [{ id: 'p1', name: L, waterDays: 7, fertDays: 30, room: 'Pokój dziecka', spot: LS, lastWater: '2000-01-01', lastFert: '2000-01-01', care: { light: LS, toxic: 'tak', toxNote: LS } }],
+    recipes: [{ id: 'r1', title: L + ' ' + LS, cat: 'zupy', fav: true, groups: [{ name: L, items: [{ q: 1, u: 'szt', n: L, raw: L }] }], steps: [L + ' ' + LS], servings: 2, source: 'https://example.com/' + 'b'.repeat(150), ts: 1 }],
+    expenses: [{ id: 'x1', date: new Date().toISOString().slice(0, 10), store: L, src: 'x', ts: 1, items: [{ name: L, price: 12.5, cat: 'inne' }], total: 12.5 }],
+    favs: [{ id: 'f1', name: L, norm: 'f', cat: 'napoje', price: 3, size: LS, info: LS }],
+    chat: [{ role: 'user', content: L }, { role: 'assistant', content: LS + ' ' + L }]
+  };
+  const probe = () => {
+    const w = window.innerWidth, bad = [];
+    if (document.documentElement.scrollWidth > w + 1) bad.push('strona przewija się poziomo (' + document.documentElement.scrollWidth + ' > ' + w + ')');
+    document.querySelectorAll('body *').forEach(el => {
+      const r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+      if (getComputedStyle(el).position === 'fixed' && r.left >= 0) { if (r.right > w + 1) bad.push('fixed ' + (el.className || el.tagName) + ' ' + Math.round(r.right)); return; }
+      let p = el.parentElement, scroller = false;
+      while (p && p !== document.body) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { scroller = true; break; } p = p.parentElement; }
+      if (!scroller && (r.right > w + 1 || r.left < -1)) bad.push((el.tagName + '.' + (el.className || '')).slice(0, 40) + ' [' + Math.round(r.left) + '..' + Math.round(r.right) + '] ' + (el.innerText || '').slice(0, 30));
+    });
+    return bad.slice(0, 6);
+  };
+  for (const width of [320, 360]) {
+    T('Układ: żaden ekran nie wychodzi poza ' + width + ' px (długie teksty w całej aplikacji)', async () => {
+      const { open } = require('./harness');
+      const o = await open(state, null, width);
+      try {
+        for (const v of ['start', 'links', 'recipes', 'shopping', 'plants', 'events', 'notes', 'budget', 'favs', 'chat', 'more', 'settings']) {
+          await ev(o.page, v => go(v), v);
+          const bad = await ev(o.page, probe);
+          assert.deepStrictEqual(bad, [], 'ekran ' + v + ': ' + bad.join(' | '));
+        }
+        await ev(o.page, () => A.openRecipe({ id: 'r1' })); assert.deepStrictEqual(await ev(o.page, probe), [], 'widok przepisu');
+        const sheets = [() => A.editEvent({ id: 'e1' }), () => A.editNote({ id: 'n1' }), () => A.editLink({ id: 'l1' }), () => A.editPlant({ id: 'p1' }), () => A.expEdit({ id: 'x1' }), () => A.favCard({ n: 'f' }), () => A.shopCat({ id: 's1' }), () => A.favList(), () => A.newEvent()];
+        for (let i = 0; i < sheets.length; i++) {
+          await ev(o.page, `(${sheets[i].toString()})()`); await o.page.waitForTimeout(100);
+          const bad = await ev(o.page, probe); assert.deepStrictEqual(bad, [], 'okno nr ' + i + ': ' + bad.join(' | '));
+          await ev(o.page, () => closeSheet());
+        }
+        assert.deepStrictEqual(o.errs, []);
+      } finally { await o.browser.close(); }
+    });
+  }
+};

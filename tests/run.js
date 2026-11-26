@@ -277,6 +277,7 @@ T('Asystent: odpowiedź i akcja dodania do zakupów', async () => {
 });
 
 require('./more')(T, ev, today);
+require('./more').layout(T, ev, today);
 
 (async () => {
   const only = process.argv[2];

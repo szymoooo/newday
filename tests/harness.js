@@ -7,9 +7,9 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' };
 
 // Tworzy aplikację w czystej przeglądarce. state = zawartość localStorage (obiekt), routes = zewnętrzne adresy
-async function open(state, routes) {
+async function open(state, routes, width) {
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 900 }, deviceScaleFactor: 1, acceptDownloads: true });
+  const ctx = await browser.newContext({ viewport: { width: width || 390, height: 900 }, deviceScaleFactor: 1, acceptDownloads: true });
   const page = await ctx.newPage();
   const errs = [];
   page.on('pageerror', e => errs.push('BŁĄD JS: ' + e.message));

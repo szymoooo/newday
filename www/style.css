@@ -291,3 +291,13 @@ nav button.center.on{background:none}
 
 /* długie nazwy bez spacji nie mogą rozpychać ekranu */
 .prow .grow,.card .t,.rtitle,h1,h2,h3{min-width:0;overflow-wrap:anywhere}
+
+/* zabezpieczenie: nic nie może poszerzać ekranu ani wychodzić poza przycisk */
+html,body{max-width:100%;overflow-x:hidden}
+main,#panel,.sheet{overflow-wrap:anywhere;word-break:break-word}
+button,.btn,.chip,.rf,.tag,.rtag,.pill,.ibtn{max-width:100%;overflow-wrap:anywhere}
+.chip,.rf,.rtag,.tag,.pill{white-space:normal;text-align:left}
+.btn:not(.sm){white-space:normal}
+.btns.foot .btn{overflow:hidden;text-overflow:ellipsis}
+img,video,canvas,svg{max-width:100%}
+input,select,textarea{max-width:100%;min-width:0}

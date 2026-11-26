@@ -10,5 +10,11 @@
     "@capacitor/core": "^6.2.0",
     "@capacitor/local-notifications": "^6.1.0",
     "@capacitor-community/speech-recognition": "^6.0.0"
+  },
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
   }
 }

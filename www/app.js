@@ -15,6 +15,7 @@ const DEF = {
 let S = null;
 let route = { v: 'start' };
 let stack = [];
+let sharedQuick = false; // zapis jednym stuknięciem po „Udostępnij”
 let draft = null;      // edytowany przepis
 let scale = 1;         // skalowanie składników w widoku przepisu
 let pendingImg = null; // zdjęcie wybrane w oknie "Dodaj"
@@ -1662,6 +1663,7 @@ function vSettings() {
     '<div id="sBaseWrap" class="' + (prov === 'openai' ? '' : 'hidden') + '"><label>Adres API (kompatybilny z OpenAI)</label><input id="sBase" value="' + esc(st.baseUrl || PROVIDERS.openai.base) + '"></div>' +
     '<button class="btn block" data-act="saveSettings">Zapisz</button>' +
     '<p class="muted">Darmowy start: wybierz „Google Gemini”, wejdź w przeglądarce na aistudio.google.com, zaloguj się kontem Google i utwórz klucz API („Get API key”). Dzienny limit ustala Google. Klucz zapisuje się tylko na tym telefonie. Bez klucza przepisy rozpoznaje prostszy parser lokalny, ale bez zdjęć i asystenta.</p></div>' +
+    '<div class="card"><h3>Udostępnianie</h3><div class="row"><div class="grow"><div class="t">Szybki zapis z „Udostępnij”</div><div class="muted">Link z przeglądarki zapisuje się od razu, bez dodatkowych pytań</div></div><button class="chip ' + (S.settings.quickShare === false ? 'plain' : 'act') + '" data-act="quickShareToggle">' + (S.settings.quickShare === false ? 'Wyłączone' : 'Włączone') + '</button></div></div>' +
     '<div class="card"><h3>Kopia zapasowa</h3><div class="btns"><button class="btn ghost" data-act="exportData">Skopiuj dane do schowka</button><button class="btn ghost" data-act="importData">Wczytaj z kopii</button><button class="btn ghost" data-act="backups">Kopie automatyczne</button></div></div>' +
     '<div class="card"><h3>Układ strony głównej</h3><div class="muted" style="margin:6px 0 10px">A: Linki w dolnym pasku. B: Asystent w pasku, „+” w rogu. C (domyślny): Asystent jako środkowy przycisk, bez „+” na Starcie.</div><div class="btns">' + ['A', 'B', 'C'].map(l => '<button class="btn ' + (layout() === l ? '' : 'ghost') + '" data-act="setLayout" data-l="' + l + '">' + l + '</button>').join('') + '</div></div>' +
     '<div class="card"><h3>Powiadomienia</h3><div class="muted" style="margin:6px 0 10px">Jeśli przypomnienia spóźniają się albo nie grają: zezwól na dokładne alarmy, a w ustawieniach telefonu (Aplikacje → Mój Dzień → Bateria) wybierz „Bez ograniczeń”. Nie zamykaj aplikacji opcją „wymuś zatrzymanie”.</div><div class="btns"><button class="btn ghost" data-act="notifFix">Zezwól na dokładne alarmy</button><button class="btn ghost" data-act="notifTest">Test dźwięku (za 5 s)</button></div></div>' +
@@ -1973,6 +1975,7 @@ function routeAI(ai, text, img) {
 function addLink(o) {
   S.links.unshift({ id: uid(), url: o.url, title: o.title, img: o.img || '', tags: o.tags || [], note: o.note || '', ts: Date.now() });
   save(); closeSheet(); toast('Zapisano w „Moje linki”'); tab('links');
+  if (sharedQuick) { const id = S.links[0].id; setTimeout(() => sheet('<h1 style="font-size:22px">Zapisano w Linkach ✓</h1><div class="muted" style="margin-bottom:10px">' + esc(S.links[0].title || S.links[0].url) + '</div><div class="btns"><button class="btn" data-act="readLink" data-id="' + id + '">📖 Czytaj / skrót</button><button class="btn ghost" data-act="sharedBack">↩ Wróć do przeglądarki</button></div>'), 350); }
 }
 function addNote(text, img) {
   S.notes.unshift({ id: uid(), text, img: img || '', pin: false, ts: Date.now() });
@@ -2216,8 +2219,10 @@ const A = {
 
   /* linki */
   linkFilter: (d) => { linkFilter = d.k; render(); },
+  sharedBack: () => { closeSheet(); try { window.Capacitor.Plugins.App.minimizeApp(); } catch (e) { /* w przeglądarce nic */ } },
+  quickShareToggle: () => { S.settings.quickShare = S.settings.quickShare === false; save(); render(); },
   readLink: async (d) => {
-    const l = byId(S.links, d.id); if (!l) return;
+    const l = byId(S.links, d.id); if (!l) return; closeSheet();
     readerTab = l.sum ? 'sum' : 'full'; readerAns = null; if (tts.id !== d.id) ttsStop();
     go('reader', d.id);
     if (!l.text && await readerLoad(d.id)) { readerTab = 'full'; render(); if (hasKey()) readerSummarize(d.id); }
@@ -2562,7 +2567,10 @@ function init() {
     if (ap && ap.addListener) ap.addListener('backButton', backPress);
   } catch (e) { /* bez natywnego Wstecz działa strzałka w aplikacji */ }
   window.addEventListener('resize', () => { if (route.v === 'chat') window.scrollTo(0, document.documentElement.scrollHeight); });
-  window.onShared = () => { const t = window.__shared; window.__shared = null; if (t) { render(); openAdd(t); } };
+  window.onShared = () => {
+    const t = window.__shared; window.__shared = null; if (!t) return; render();
+    if (S.settings.quickShare !== false && /https?:\/\/\S+/.test(t)) { sharedQuick = true; handleAdd(t).finally(() => { setTimeout(() => { sharedQuick = false; }, 400); }); } else openAdd(t);
+  };
   render();
   if (window.__shared) window.onShared();
   // przypomnienia o roślinach po starcie (np. po restarcie telefonu)

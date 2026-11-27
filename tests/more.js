@@ -438,3 +438,48 @@ module.exports.reader = function (T, ev, today) {
     } finally { await o.browser.close(); }
   });
 };
+
+/* ===== SZYBKI ZAPIS Z „UDOSTĘPNIJ” ===== */
+module.exports.share = function (T, ev, today) {
+  const { open, gemini, site, chain, KEY } = require('./harness');
+  const assert = require('assert');
+  const BLOG = '<html><head><title>Zupa pomidorowa - blog</title></head><body><h1>Zupa pomidorowa</h1><p>Pyszna zupa na każdą okazję, robiona od lat w moim domu. Naprawdę warto ją przygotować.</p><h2>Składniki</h2><ul><li>1 kg pomidorów</li><li>1 cebula</li><li>500 ml bulionu</li></ul><h2>Przygotowanie</h2><p>Pokrój cebulę i podsmaż. Dodaj pomidory i bulion. Gotuj 20 minut. Zblenduj.</p></body></html>';
+  const NEWS = '<html><head><title>Wiadomości dnia</title><meta property="og:title" content="Wiadomości dnia"></head><body><p>Dzisiaj w mieście otwarto nowy most nad rzeką, mieszkańcy są zadowoleni.</p></body></html>';
+  const R = chain(site('blog.example.com', BLOG), site('news.example.com', NEWS));
+  const share = (page, t) => ev(page, t => { window.__shared = t; window.onShared(); }, t);
+
+  T('Udostępnij: link do przepisu zapisuje się od razu i otwiera edytor przepisu', async () => {
+    const o = await open({ settings: { name: 'Ala' } }, R);
+    try { await share(o.page, 'https://blog.example.com/zupa'); await o.page.waitForTimeout(1200);
+      assert.ok(/przepis/i.test(await ev(o.page, () => document.querySelector('#panel h1').textContent)));
+      assert.strictEqual(await ev(o.page, () => S.links.length), 0);
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+
+  T('Udostępnij: zwykły artykuł zapisuje się w Linkach i pokazuje „Czytaj” oraz „Wróć do przeglądarki”', async () => {
+    const o = await open({ settings: { name: 'Ala' } }, R);
+    try { await share(o.page, 'Zobacz to: https://news.example.com/a'); await o.page.waitForTimeout(1800);
+      assert.strictEqual(await ev(o.page, () => S.links.length), 1);
+      assert.ok(await ev(o.page, () => !!document.querySelector('[data-act=readLink]#x, #panel [data-act=readLink]')), 'brak przycisku Czytaj');
+      assert.ok(await ev(o.page, () => !!document.querySelector('#panel [data-act=sharedBack]')), 'brak przycisku powrotu');
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+
+  T('Udostępnij: przy wyłączonym szybkim zapisie działa po staremu (bez okna „Czytaj”)', async () => {
+    const o = await open({ settings: { name: 'Ala', quickShare: false } }, R);
+    try { await share(o.page, 'https://news.example.com/a'); await o.page.waitForTimeout(1800);
+      assert.strictEqual(await ev(o.page, () => S.links.length), 1);
+      assert.ok(!(await ev(o.page, () => !!document.querySelector('#panel [data-act=sharedBack]'))), 'pokazało okno szybkiego zapisu');
+    } finally { await o.browser.close(); }
+  });
+
+  T('Udostępnij: tekst bez linku zapisuje się jako notatka', async () => {
+    const o = await open({ settings: { name: 'Ala' } }, R);
+    try { await share(o.page, 'Kupić prezent dla mamy'); await o.page.waitForTimeout(800);
+      assert.strictEqual(await ev(o.page, () => S.links.length), 0);
+      assert.ok(await ev(o.page, () => S.notes.some(n => /prezent/.test(n.text))), 'notatka nie powstała');
+    } finally { await o.browser.close(); }
+  });
+};

@@ -362,3 +362,79 @@ module.exports.layout = function (T, ev, today) {
     });
   }
 };
+
+/* ===== CZYTNIK ARTYKUŁÓW ===== */
+module.exports.reader = function (T, ev, today) {
+  const { open, gemini, site, chain, KEY } = require('./harness');
+  const para = i => '<p>Zdanie numer ' + i + ' w tym artykule opowiada o koszykówce, szkoleniu dzieci i reprezentacji Polski, i jest dostatecznie długie.</p>';
+  const ART = '<html><head><title>Legenda krytycznie o szkoleniu - Interia</title><meta property="og:title" content="Legenda krytycznie o szkoleniu"></head><body><nav><a>Menu</a><a>Sport</a></nav><header><p>Nagłówek serwisu który nie jest treścią artykułu wcale</p></header><article><h1>Legenda krytycznie o szkoleniu</h1><p>Reklama</p>' +
+    Array.from({ length: 14 }, (_, i) => para(i + 1)).join('') + '<p>Czytaj także: coś zupełnie innego, co nie jest częścią tego artykułu</p><h2>Co dalej?</h2>' + para(99) + '</article><footer><p>Stopka serwisu: wszelkie prawa zastrzeżone przez wydawcę serwisu internetowego</p></footer></body></html>';
+  const fakeTts = `(() => { window.__spoken = []; window.__cancelled = 0; window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+    Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak(u) { window.__spoken.push(u.text); setTimeout(() => u.onend && u.onend(), window.__delay || 150); }, cancel() { window.__cancelled++; } } }); })()`;
+  const ai = (sys, last) => /Streszczasz/.test(sys) ? { lead: 'Legenda krytykuje polskie szkolenie.', points: ['Dzieci mają za mało gry.', 'Za dużo meczów.', 'Brak treningu indywidualnego.', 'Potrzebna reforma.', 'Kluby zarabiają na turniejach.'] } : /WYŁĄCZNIE z podanego/.test(sys) ? 'Powiedział, że dzieci grają za dużo meczów.' : null;
+  const setup = async () => { const o = await open(KEY, chain(site('sport.example.com', ART), gemini(ai))); await o.page.evaluate(fakeTts); return o; };
+  const wrap = fn => async () => { const o = await setup(); try { await fn(o); require('assert').deepStrictEqual(o.errs, [], 'błędy JS'); } finally { await o.browser.close(); } };
+  const assert = require('assert');
+  const addLink = page => ev(page, () => { S.links.push({ id: 'l1', url: 'https://sport.example.com/a', title: 'Legenda krytycznie o szkoleniu', tags: [], note: '', ts: 1 }); save(); go('links'); });
+
+  T('Czytnik: wyciąga treść artykułu bez reklam, menu i stopki', wrap(async ({ page }) => {
+    await addLink(page);
+    await ev(page, () => A.readLink({ id: 'l1' })); await page.waitForTimeout(1500);
+    const t = await ev(page, () => S.links[0].text);
+    assert.ok(t.includes('Zdanie numer 1 ') && t.includes('Zdanie numer 99'), 'brak treści');
+    assert.ok(t.includes('## Co dalej?'), 'brak śródtytułu');
+    for (const bad of ['Reklama', 'Czytaj także', 'Stopka', 'Nagłówek serwisu', 'Menu']) assert.ok(!t.includes(bad), 'w treści zostało: ' + bad);
+  }));
+
+  T('Czytnik: skrót AI (lead + punkty) pojawia się po otwarciu artykułu', wrap(async ({ page }) => {
+    await addLink(page);
+    await ev(page, () => A.readLink({ id: 'l1' })); await page.waitForTimeout(2000);
+    const s = await ev(page, () => S.links[0].sum);
+    assert.ok(s && s.points.length === 5, 'brak skrótu');
+    assert.ok((await ev(page, () => document.body.innerText)).includes('Legenda krytykuje polskie szkolenie'));
+  }));
+
+  T('Czytnik: pytanie o artykuł dostaje odpowiedź', wrap(async ({ page }) => {
+    await addLink(page);
+    await ev(page, () => A.readLink({ id: 'l1' })); await page.waitForTimeout(2000);
+    await page.fill('#rqa', 'ile meczów grają dzieci?'); await page.click('[data-act=readerAsk]'); await page.waitForTimeout(800);
+    assert.ok((await ev(page, () => document.body.innerText)).includes('grają za dużo meczów'));
+  }));
+
+  T('Czytnik: odsłuch - czytanie kawałkami, pauza, wznowienie od tego samego miejsca, stop', wrap(async ({ page }) => {
+    await addLink(page);
+    await ev(page, () => A.readLink({ id: 'l1' })); await page.waitForTimeout(2000);
+    await ev(page, () => { window.__delay = 900; A.readerTab({ k: 'full' }); });
+    await page.click('[data-act=ttsPlay][data-m=full]'); await page.waitForTimeout(300);
+    const n1 = await ev(page, () => window.__spoken.length);
+    assert.ok(n1 >= 1, 'nic nie czyta');
+    await page.click('[data-act=ttsPause]'); const at = await ev(page, () => tts.i); await page.waitForTimeout(1200);
+    const frozen = await ev(page, () => window.__spoken.length);
+    assert.ok(frozen <= n1 + 1, 'czyta mimo pauzy');
+    await page.click('[data-act=ttsResume]'); await page.waitForTimeout(300);
+    assert.ok(await ev(page, () => window.__spoken.length) > frozen, 'nie wznowiło');
+    assert.ok(await ev(page, i => tts.i >= i, at), 'wznowiło od początku');
+    await page.click('[data-act=ttsStop]');
+    assert.strictEqual(await ev(page, () => tts.on), false);
+  }));
+
+  T('Czytnik: odsłuch skrótu czyta lead i punkty; wyjście z ekranu zatrzymuje czytanie', wrap(async ({ page }) => {
+    await addLink(page);
+    await ev(page, () => A.readLink({ id: 'l1' })); await page.waitForTimeout(2000);
+    await page.click('[data-act=ttsPlay][data-m=sum]'); await page.waitForTimeout(300);
+    assert.ok((await ev(page, () => window.__spoken.join(' '))).includes('Legenda krytykuje'));
+    await ev(page, () => go('links'));
+    assert.strictEqual(await ev(page, () => tts.on), false, 'czyta po wyjściu z artykułu');
+  }));
+
+  T('Czytnik: strona bez treści → komunikat, link zostaje; brak głosu → komunikat zamiast awarii', async () => {
+    const o = await open(KEY, chain(site('empty.example.com', '<html><body><p>krótko</p></body></html>'), gemini(ai)));
+    try {
+      await ev(o.page, () => { S.links.push({ id: 'l2', url: 'https://empty.example.com/', title: 'Pusta', tags: [], note: '', ts: 1 }); save(); });
+      await ev(o.page, () => A.readLink({ id: 'l2' })); await o.page.waitForTimeout(1500);
+      assert.ok(!(await ev(o.page, () => S.links[0].text)), 'zapisał śmieci');
+      assert.strictEqual(await ev(o.page, () => S.links.length), 1);
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+};

@@ -935,7 +935,7 @@ function linkCard(l) {
   const src = sourceOf(l.url);
   const tags = (l.tags || []).map(t => '<span class="chip yellow">' + esc(t) + '</span>').join('');
   const note = l.note ? '<div class="muted" style="margin-top:6px">' + esc(l.note) + '</div>' : '';
-  const btns = '<div class="btns"><button class="btn sm" data-act="openLink" data-id="' + l.id + '">Otwórz</button><button class="btn sm ghost" data-act="editLink" data-id="' + l.id + '">Zmień nazwę</button><button class="btn sm red" data-act="delLink" data-id="' + l.id + '">Usuń</button></div>';
+  const btns = '<div class="btns"><button class="btn sm" data-act="readLink" data-id="' + l.id + '">📖 Czytaj</button><button class="btn sm ghost" data-act="openLink" data-id="' + l.id + '">Otwórz</button><button class="btn sm ghost" data-act="editLink" data-id="' + l.id + '">Zmień nazwę</button><button class="btn sm red" data-act="delLink" data-id="' + l.id + '">Usuń</button></div>';
   if (l.img) {
     return '<div class="lcard"><div class="limg"><img src="' + esc(l.img) + '" alt="" loading="lazy" onerror="this.parentNode.classList.add(\'ph\',\'blue\');this.remove()"><span class="src">' + esc(src) + '</span></div>' +
       '<div class="lbody"><h3>' + esc(l.title || l.url) + '</h3><div style="margin-top:8px">' + tags + '</div>' + note + btns + '</div></div>';
@@ -949,6 +949,112 @@ function listLinks(q) {
     (!q || (l.title + ' ' + l.url + ' ' + (l.tags || []).join(' ') + ' ' + (l.note || '')).toLowerCase().includes(q)));
   if (!ls.length) return '<div class="muted card">Brak zapisanych linków. Użyj „Udostępnij” w innej aplikacji i wybierz Mój Dzień, albo wklej link przyciskiem +.</div>';
   return ls.map(linkCard).join('');
+}
+/* ---------- czytnik artykułów: treść, skrót AI, odsłuch ---------- */
+let readerTab = 'sum', readerAns = null;
+const BOILER = /^(reklama|czytaj (też|także|więcej)|zobacz (też|także)|polecamy|powiązane|udostępnij|newsletter|zapisz się|komentarze|więcej na ten temat|materiał partnera|artykuł sponsorowany|dołącz do nas|obserwuj nas|cookies?|polityka prywatności)/i;
+function extractArticle(html) {
+  const h = String(html).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<(script|style|noscript|svg|nav|header|footer|aside|form|iframe|figure|button|select)\b[\s\S]*?<\/\1>/gi, ' ');
+  const collect = scope => {
+    const out = [], re = /<(p|h2|h3|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/gi; let m;
+    while ((m = re.exec(scope))) {
+      const t = decodeHtml(m[2].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+      if (!t || BOILER.test(t) || out[out.length - 1] === t) continue;
+      if (m[1] === 'h2' || m[1] === 'h3') { if (t.length > 3 && t.length < 140) out.push('## ' + t); } else if (t.length >= 40) out.push(t);
+    }
+    return out;
+  };
+  const arts = (h.match(/<article\b[\s\S]*?<\/article>/gi) || []).sort((a, b) => b.length - a.length);
+  let paras = arts.length ? collect(arts[0]) : [];
+  if (paras.join(' ').length < 400) paras = collect((h.match(/<main\b[\s\S]*?<\/main>/i) || [h])[0]);
+  if (paras.join(' ').length < 400) paras = collect(h);
+  while (paras.length && /^## /.test(paras[paras.length - 1])) paras.pop();
+  return paras.join('\n\n').slice(0, 30000);
+}
+async function readerLoad(id) {
+  const l = byId(S.links, id); if (!l) return false;
+  busy(true, 'Pobieram artykuł…');
+  try {
+    const r = await withTimeout(fetch(l.url, { headers: { 'User-Agent': BROWSER_UA, 'Accept-Language': 'pl,en;q=0.8', 'Accept': 'text/html,application/xhtml+xml' } }), 15000);
+    const text = extractArticle(await r.text());
+    if (text.length < 300) { busy(false); toast('Nie udało się wyciągnąć treści tej strony (może wymagać logowania)'); return false; }
+    l.text = text; l.readTs = Date.now(); save(); busy(false); return true;
+  } catch (e) { busy(false); toast('Nie udało się pobrać strony: ' + String(e.message || e).slice(0, 60)); return false; }
+}
+async function readerSummarize(id) {
+  const l = byId(S.links, id); if (!l || !l.text) return;
+  if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
+  busy(true, 'Wyciągam najważniejsze informacje…');
+  try {
+    const out = await claude({ system: 'Streszczasz artykuł po polsku. Wyciągnij TYLKO konkrety: kto, co, kiedy, ile, dlaczego, ważne cytaty i liczby. Pomiń wstępy, reklamy, powtórzenia i ogólniki. Odpowiedz WYŁĄCZNIE JSON-em: {"lead":"jedno zdanie - sedno artykułu","points":["5-8 krótkich, konkretnych punktów"]}', messages: [{ role: 'user', content: (l.title || '') + '\n\n' + l.text.slice(0, 14000) }], max: 900 });
+    const j = extractJSON(out);
+    if (!j || !Array.isArray(j.points) || !j.points.length) throw new Error('pusta odpowiedź');
+    l.sum = { lead: String(j.lead || '').trim(), points: j.points.map(x => String(x).trim()).filter(Boolean).slice(0, 10) };
+    save(); busy(false); readerTab = 'sum'; render();
+  } catch (e) { busy(false); toast('Nie udało się streścić: ' + String(e.message || e).slice(0, 60)); }
+}
+async function readerAsk(id, q) {
+  const l = byId(S.links, id); if (!l || !l.text || !q) return;
+  if (!hasKey()) { toast('Dodaj klucz AI w Ustawieniach'); return; }
+  busy(true, 'Szukam odpowiedzi w artykule…');
+  try {
+    const out = await claude({ system: 'Odpowiadasz po polsku na pytanie, korzystając WYŁĄCZNIE z podanego artykułu. Zwięźle i konkretnie. Jeśli artykuł nie zawiera odpowiedzi, napisz to wprost.', messages: [{ role: 'user', content: 'ARTYKUŁ:\n' + l.text.slice(0, 14000) + '\n\nPYTANIE: ' + q }], max: 500 });
+    readerAns = { q, a: String(out).trim() }; busy(false); render();
+  } catch (e) { busy(false); toast('Nie udało się: ' + String(e.message || e).slice(0, 60)); }
+}
+/* odsłuch: wtyczka systemowa (Android) albo przeglądarkowa; tekst dzielony na kawałki, żeby dało się pauzować */
+const TTSP = () => (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) || null;
+let tts = { on: false, chunks: [], i: 0, rate: 1, mode: '', tok: 0, id: '' };
+function ttsChunks(text) {
+  const out = []; let cur = '';
+  text.replace(/^## /gm, '').split(/(?<=[.!?…])\s+|\n+/).forEach(sn => {
+    sn = sn.trim(); if (!sn) return;
+    if ((cur + ' ' + sn).length > 700 && cur) { out.push(cur); cur = sn; } else cur = (cur ? cur + ' ' : '') + sn;
+  });
+  if (cur) out.push(cur); return out;
+}
+function ttsSpeak(t, rate) {
+  const P = TTSP();
+  if (P) return P.speak({ text: t, lang: 'pl-PL', rate, pitch: 1, volume: 1, category: 'playback' });
+  return new Promise((res, rej) => {
+    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { rej(new Error('brak odsłuchu')); return; }
+    const u = new SpeechSynthesisUtterance(t); u.lang = 'pl-PL'; u.rate = rate; u.onend = () => res(); u.onerror = e => rej(e); window.speechSynthesis.speak(u);
+  });
+}
+function ttsHalt() { try { const P = TTSP(); if (P) P.stop(); else if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignoruj */ } }
+async function ttsRun(tok) {
+  while (tts.on && tts.tok === tok && tts.i < tts.chunks.length) {
+    if (route.v === 'reader') render();
+    try { await ttsSpeak(tts.chunks[tts.i], tts.rate); } catch (e) { if (tts.tok === tok) { tts.on = false; toast('Odsłuch nie działa na tym telefonie - sprawdź, czy ma głos polski'); } break; }
+    if (tts.tok !== tok || !tts.on) break;
+    tts.i++;
+  }
+  if (tts.tok === tok) { if (tts.i >= tts.chunks.length) { tts.on = false; tts.i = 0; } if (route.v === 'reader') render(); }
+}
+function ttsStart(id, mode, from) {
+  const l = byId(S.links, id); if (!l) return;
+  const text = mode === 'sum' && l.sum ? [l.sum.lead].concat(l.sum.points).filter(Boolean).join('. ').replace(/\.\.+/g, '.') : (l.title ? l.title + '. ' : '') + (l.text || '');
+  ttsHalt(); tts = { on: true, chunks: ttsChunks(text), i: from || 0, rate: tts.rate || 1, mode, tok: tts.tok + 1, id };
+  ttsRun(tts.tok);
+}
+function ttsStop() { tts.on = false; tts.paused = false; tts.tok++; tts.i = 0; ttsHalt(); }
+function vReader(id) {
+  const l = byId(S.links, id); if (!l) return hdr('Artykuł') + '<div class="card muted">Nie ma takiego linku.</div>';
+  const playing = tts.on && tts.id === id, paused = !tts.on && tts.id === id && tts.paused && tts.i < tts.chunks.length;
+  const s = l.sum;
+  const sum = s ? '<div class="card"><div style="font-weight:800;font-size:17px;line-height:1.35">' + esc(s.lead) + '</div><ul class="ing" style="margin-top:10px">' + s.points.map(p => '<li>' + esc(p) + '</li>').join('') + '</ul></div>' : '<div class="card"><div class="muted">Skrót jeszcze nie powstał.</div></div>';
+  const full = '<div class="card" style="font-size:17px;line-height:1.6">' + (l.text || '').split(/\n\n/).map(p => /^## /.test(p) ? '<h3 style="margin:16px 0 6px">' + esc(p.slice(3)) + '</h3>' : '<p style="margin:0 0 12px">' + esc(p) + '</p>').join('') + '</div>';
+  const player = '<div class="btns" style="margin:10px 0">' + (playing
+    ? '<button class="btn" data-act="ttsPause">⏸ Pauza</button><button class="btn ghost" data-act="ttsStop">⏹ Stop</button>'
+    : paused ? '<button class="btn" data-act="ttsResume">▶ Wznów</button><button class="btn ghost" data-act="ttsStop">⏹ Stop</button>'
+      : (s ? '<button class="btn" data-act="ttsPlay" data-m="sum">🔊 Czytaj skrót</button>' : '') + '<button class="btn ' + (s ? 'ghost' : '') + '" data-act="ttsPlay" data-m="full">🔊 Czytaj całość</button>') + '</div>' +
+    ((playing || paused) ? '<div class="muted" style="margin:-4px 0 8px">Czytam: ' + (tts.i + 1) + ' / ' + tts.chunks.length + '</div>' : '') +
+    '<div class="pills" style="margin-bottom:8px">' + [['0.85', 'Wolno'], ['1', 'Normalnie'], ['1.25', 'Szybko']].map(r => '<button class="chip ' + (String(tts.rate || 1) === r[0] ? 'act' : 'plain') + '" data-act="ttsRate" data-r="' + r[0] + '">' + r[1] + '</button>').join('') + '</div>';
+  const ask = '<div class="card"><label>Zapytaj o artykuł</label><input id="rqa" placeholder="np. co powiedział o szkoleniu dzieci?" autocomplete="off"><div class="btns"><button class="btn sm" data-act="readerAsk" data-id="' + l.id + '">Zapytaj</button></div>' + (readerAns ? '<div style="margin-top:10px"><div class="muted">' + esc(readerAns.q) + '</div><div style="margin-top:4px;line-height:1.5">' + esc(readerAns.a) + '</div></div>' : '') + '</div>';
+  if (!l.text) return hdr('Artykuł') + '<h2 style="margin:0 0 6px">' + esc(l.title || l.url) + '</h2><div class="muted">' + esc(sourceOf(l.url)) + '</div><div class="card" style="margin-top:12px"><div class="muted">Treść nie została jeszcze pobrana.</div><div class="btns"><button class="btn" data-act="readerReload" data-id="' + l.id + '">Pobierz artykuł</button><button class="btn ghost" data-act="openLink" data-id="' + l.id + '">Otwórz w przeglądarce</button></div></div>';
+  return hdr('Artykuł') + '<h2 style="margin:0 0 4px;line-height:1.25">' + esc(l.title || l.url) + '</h2><div class="muted">' + esc(sourceOf(l.url)) + ' · ' + Math.max(1, Math.round(l.text.split(/\s+/).length / 200)) + ' min czytania</div>' +
+    '<div class="pills" style="margin:12px 0 8px"><button class="chip ' + (readerTab === 'sum' ? 'act' : 'plain') + '" data-act="readerTab" data-k="sum">Skrót</button><button class="chip ' + (readerTab === 'full' ? 'act' : 'plain') + '" data-act="readerTab" data-k="full">Pełny tekst</button></div>' +
+    player + (readerTab === 'sum' ? sum + '<div class="btns"><button class="btn sm ghost" data-act="readerSum" data-id="' + l.id + '">' + (s ? 'Streść ponownie' : '✨ Wyciągnij konkrety') + '</button><button class="btn sm ghost" data-act="openLink" data-id="' + l.id + '">Oryginał</button></div>' : full) + '<div style="height:12px"></div>' + ask;
 }
 function vLinks() {
   const srcs = ['Wszystkie'].concat([...new Set(S.links.map(l => sourceOf(l.url)))].slice(0, 5));
@@ -1581,7 +1687,7 @@ function vSearch(q) {
     (q ? (res.map(r => '<div class="card tap" data-act="' + r.act + '" data-id="' + (r.id || '') + '" data-v="' + (r.v || '') + '"><div class="muted">' + r.t + '</div>' + esc(r.title) + '</div>').join('') || '<div class="muted card">Nic nie znaleziono.</div>') : '');
 }
 
-const VIEWS = { favs: vFavs, start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe, shopping: vShopping, more: vMore, plants: vPlants, events: vEvents, notes: vNotes, budget: vBudget, chat: vChat, settings: vSettings, search: vSearch };
+const VIEWS = { reader: vReader, favs: vFavs, start: vStart, links: vLinks, recipes: vRecipes, recipe: vRecipe, shopping: vShopping, more: vMore, plants: vPlants, events: vEvents, notes: vNotes, budget: vBudget, chat: vChat, settings: vSettings, search: vSearch };
 
 /* =====================  ROUTER  ===================== */
 const FAB_VIEWS = ['start', 'links', 'recipes'];
@@ -1596,6 +1702,7 @@ function buildNav() {
   nav.innerHTML = NAV_ORDER[L].map(k => '<button data-act="tab" data-v="' + k + '" data-t="' + k + '"' + (L === 'C' && k === 'chat' ? ' class="center"' : '') + '><span class="ni">' + ic(NAV_ITEMS[k][0], L === 'C' && k === 'chat' ? 28 : 26) + '</span>' + NAV_ITEMS[k][1] + '</button>').join('');
 }
 function render() {
+  if (route.v !== 'reader' && tts.on) ttsStop();
   buildNav();
   $('#view').innerHTML = VIEWS[route.v](route.p);
   document.body.className = 'v-' + route.v + ' lay-' + layout();
@@ -2109,6 +2216,21 @@ const A = {
 
   /* linki */
   linkFilter: (d) => { linkFilter = d.k; render(); },
+  readLink: async (d) => {
+    const l = byId(S.links, d.id); if (!l) return;
+    readerTab = l.sum ? 'sum' : 'full'; readerAns = null; if (tts.id !== d.id) ttsStop();
+    go('reader', d.id);
+    if (!l.text && await readerLoad(d.id)) { readerTab = 'full'; render(); if (hasKey()) readerSummarize(d.id); }
+  },
+  readerReload: async (d) => { if (await readerLoad(d.id)) { readerTab = 'full'; render(); if (hasKey()) readerSummarize(d.id); } },
+  readerTab: (d) => { readerTab = d.k; render(); },
+  readerSum: (d) => readerSummarize(d.id),
+  readerAsk: (d) => readerAsk(d.id, val('rqa').trim()),
+  ttsPlay: (d) => ttsStart(route.p, d.m),
+  ttsPause: () => { tts.on = false; tts.paused = true; tts.tok++; ttsHalt(); render(); },
+  ttsResume: () => { tts.on = true; tts.paused = false; tts.tok++; ttsRun(tts.tok); },
+  ttsStop: () => { ttsStop(); render(); },
+  ttsRate: (d) => { tts.rate = parseFloat(d.r); if (tts.on) ttsStart(tts.id, tts.mode, tts.i); else render(); },
   openLink: (d) => { const l = byId(S.links, d.id); if (l && l.url) window.open(l.url, '_blank'); },
   editLink: (d) => openLinkEditor(byId(S.links, d.id)),
   saveLink: () => {

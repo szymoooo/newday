@@ -954,23 +954,34 @@ function listLinks(q) {
 /* ---------- czytnik artykułów: treść, skrót AI, odsłuch ---------- */
 let readerTab = 'sum', readerAns = null;
 const BOILER = /^(reklama|czytaj (też|także|więcej)|zobacz (też|także)|polecamy|powiązane|udostępnij|newsletter|zapisz się|komentarze|więcej na ten temat|materiał partnera|artykuł sponsorowany|dołącz do nas|obserwuj nas|cookies?|polityka prywatności)/i;
+const NOISE_CLS = /(^|[\s_-])(ads?|advert\w*|reklam\w*|banner\w*|promo\w*|related|recommend\w*|newsletter|cookie\w*|share|social|comments?|sponsor\w*|teaser|widget|paywall|subscribe)([\s_-]|$)/i;
 function extractArticle(html) {
-  const h = String(html).replace(/<!--[\s\S]*?-->/g, ' ').replace(/<(script|style|noscript|svg|nav|header|footer|aside|form|iframe|figure|button|select)\b[\s\S]*?<\/\1>/gi, ' ');
-  const collect = scope => {
-    const out = [], re = /<(p|h2|h3|blockquote)\b[^>]*>([\s\S]*?)<\/\1>/gi; let m;
-    while ((m = re.exec(scope))) {
-      const t = decodeHtml(m[2].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-      if (!t || BOILER.test(t) || out[out.length - 1] === t) continue;
-      if (m[1] === 'h2' || m[1] === 'h3') { if (t.length > 3 && t.length < 140) out.push('## ' + t); } else if (t.length >= 40) out.push(t);
-    }
-    return out;
-  };
-  const arts = (h.match(/<article\b[\s\S]*?<\/article>/gi) || []).sort((a, b) => b.length - a.length);
-  let paras = arts.length ? collect(arts[0]) : [];
-  if (paras.join(' ').length < 400) paras = collect((h.match(/<main\b[\s\S]*?<\/main>/i) || [h])[0]);
-  if (paras.join(' ').length < 400) paras = collect(h);
-  while (paras.length && /^## /.test(paras[paras.length - 1])) paras.pop();
-  return paras.join('\n\n').slice(0, 30000);
+  const doc = new DOMParser().parseFromString(String(html), 'text/html');
+  doc.querySelectorAll('script,style,noscript,svg,nav,header,footer,aside,form,iframe,figure,button,select,template').forEach(n => n.remove());
+  doc.querySelectorAll('[class],[id]').forEach(n => { if (n.parentNode && n !== doc.body && NOISE_CLS.test((n.getAttribute('class') || '') + ' ' + (n.id || ''))) n.remove(); });
+  const textOf = n => { n.querySelectorAll('br').forEach(b => b.replaceWith('\n')); return (n.textContent || '').replace(/[ \t\r\f\v ]+/g, ' ').split(/\n+/).map(x => x.trim()).filter(Boolean); };
+  const blocks = [...doc.body.querySelectorAll('p,h2,h3,blockquote')].filter(n => !n.querySelector('p,h2,h3,blockquote'));
+  if (!blocks.length) return '';
+  // kontener z największą ilością tekstu akapitowego (zagnieżdżone <article> z polecanymi artykułami nie ucinają treści)
+  const score = new Map();
+  blocks.forEach(n => {
+    const len = /^(P|BLOCKQUOTE)$/.test(n.tagName) ? (n.textContent || '').trim().length : 0; if (len < 40) return;
+    let el = n.parentElement, w = 1;
+    for (let k = 0; el && k < 4; k++, el = el.parentElement, w *= 0.6) score.set(el, (score.get(el) || 0) + len * w);
+  });
+  let best = null, bv = 0; score.forEach((v, el) => { if (v > bv || (v === bv && best && best.contains(el))) { best = el; bv = v; } });
+  const scope = best || doc.body;
+  const out = [];
+  scope.querySelectorAll('p,h2,h3,blockquote').forEach(n => {
+    if (n.querySelector('p,h2,h3,blockquote')) return;
+    const lines = textOf(n.cloneNode(true));
+    lines.forEach(t => {
+      if (BOILER.test(t) || out[out.length - 1] === t) return;
+      if (/^H[23]$/.test(n.tagName)) { if (t.length > 3 && t.length < 140) out.push('## ' + t); } else if (t.length >= 40) out.push(t);
+    });
+  });
+  while (out.length && /^## /.test(out[out.length - 1])) out.pop();
+  return out.join('\n\n').slice(0, 40000);
 }
 async function readerLoad(id) {
   const l = byId(S.links, id); if (!l) return false;
@@ -1010,13 +1021,14 @@ function ttsChunks(text) {
   const out = []; let cur = '';
   text.replace(/^## /gm, '').split(/(?<=[.!?…])\s+|\n+/).forEach(sn => {
     sn = sn.trim(); if (!sn) return;
-    if ((cur + ' ' + sn).length > 700 && cur) { out.push(cur); cur = sn; } else cur = (cur ? cur + ' ' : '') + sn;
+    if ((cur + ' ' + sn).length > 240 && cur) { out.push(cur); cur = sn; } else cur = (cur ? cur + ' ' : '') + sn;
   });
-  if (cur) out.push(cur); return out;
+  if (cur) out.push(cur);
+  return out.flatMap(c => { const r = []; while (c.length > 3000) { r.push(c.slice(0, 3000)); c = c.slice(3000); } r.push(c); return r; });
 }
-function ttsSpeak(t, rate) {
+function ttsSpeak(t, rate, queue) {
   const P = TTSP();
-  if (P) return P.speak({ text: t, lang: 'pl-PL', rate, pitch: 1, volume: 1, category: 'playback' });
+  if (P) return P.speak({ text: t, lang: 'pl-PL', rate, pitch: 1, volume: 1, category: 'playback', queueStrategy: queue ? 1 : 0 });
   return new Promise((res, rej) => {
     if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) { rej(new Error('brak odsłuchu')); return; }
     const u = new SpeechSynthesisUtterance(t); u.lang = 'pl-PL'; u.rate = rate; u.onend = () => res(); u.onerror = e => rej(e); window.speechSynthesis.speak(u);
@@ -1024,9 +1036,19 @@ function ttsSpeak(t, rate) {
 }
 function ttsHalt() { try { const P = TTSP(); if (P) P.stop(); else if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignoruj */ } }
 async function ttsRun(tok) {
+  if (TTSP()) { // Android: cały tekst trafia do kolejki systemowego głosu, więc czyta dalej także przy zgaszonym ekranie
+    const from = tts.i, n = tts.chunks.length; let done = from, failed = false;
+    if (route.v === 'reader') render();
+    await Promise.all(tts.chunks.slice(from).map((t, k) => ttsSpeak(t, tts.rate, k > 0).then(() => {
+      if (tts.tok !== tok || !tts.on) return;
+      done = Math.max(done, from + k + 1); tts.i = Math.min(done, n - 1); if (route.v === 'reader') render();
+    }).catch(() => { if (tts.tok === tok && !failed) { failed = true; tts.on = false; toast('Odsłuch nie działa na tym telefonie - sprawdź, czy ma głos polski'); } })));
+    if (tts.tok === tok && !failed) { tts.on = false; tts.i = 0; if (route.v === 'reader') render(); }
+    return;
+  }
   while (tts.on && tts.tok === tok && tts.i < tts.chunks.length) {
     if (route.v === 'reader') render();
-    try { await ttsSpeak(tts.chunks[tts.i], tts.rate); } catch (e) { if (tts.tok === tok) { tts.on = false; toast('Odsłuch nie działa na tym telefonie - sprawdź, czy ma głos polski'); } break; }
+    try { await ttsSpeak(tts.chunks[tts.i], tts.rate, false); } catch (e) { if (tts.tok === tok) { tts.on = false; toast('Odsłuch nie działa na tym telefonie - sprawdź, czy ma głos polski'); } break; }
     if (tts.tok !== tok || !tts.on) break;
     tts.i++;
   }

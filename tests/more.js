@@ -483,3 +483,71 @@ module.exports.share = function (T, ev, today) {
     } finally { await o.browser.close(); }
   });
 };
+
+/* ===== CZYTNIK: artykuł z Interii (reklamy, polecane artykuły w środku tekstu) i odsłuch w tle ===== */
+module.exports.reader2 = function (T, ev, today) {
+  const { open, gemini, site, chain, KEY } = require('./harness');
+  const assert = require('assert');
+  const fx = require('./fixtures/interia');
+  const ai = (sys) => /Streszczasz/.test(sys) ? { lead: 'Wywiad o szkoleniu dzieci.', points: ['Praca przed meczami.', 'Za dużo turniejów.', 'Klub to świętość.', 'Trening indywidualny jako dodatek.', 'Wzorce z Hiszpanii.'] } : null;
+
+  T('Czytnik: artykuł z Interii (link z fbclid) - cały wywiad, bez reklam, polecanych i stopki', async () => {
+    const o = await open(KEY, chain(site('sport.interia.pl', fx.html), gemini(ai)));
+    try {
+      await ev(o.page, u => { S.links.push({ id: 'l1', url: u, title: 'Legenda', tags: [], note: '', ts: 1 }); save(); }, fx.url);
+      await ev(o.page, () => A.readLink({ id: 'l1' })); await o.page.waitForTimeout(2000);
+      const t = await ev(o.page, () => S.links[0].text);
+      for (const must of ['Na co zwraca pan uwagę podczas treningów?', 'Zwracamy uwagę na podejście do zajęć', 'klub to świętość', 'Dlaczego w takim razie niektórzy trenerzy są na "nie"?', 'Dobrzy trenerzy nie mają nic przeciwko', 'kozłowaniem, wejściami pod kosz', 'Real Betis Sevilla', 'Dzieciaki i młodzież żyją meczami', 'to są zdziwione'])
+        assert.ok(t.includes(must), 'brakuje fragmentu: ' + must);
+      for (const bad of ['Reklama', 'kredyt gotówkowy', 'Czytaj także', 'Polecany artykuł', 'Polecamy także', 'Czytaj więcej na', 'Stopka serwisu', 'Najpopularniejsze', 'Zupełnie inny temat'])
+        assert.ok(!t.includes(bad), 'w treści został śmieć: ' + bad);
+      assert.ok(t.indexOf('Zwracamy uwagę') < t.indexOf('Real Betis') && t.indexOf('Real Betis') < t.indexOf('żyją meczami'), 'zła kolejność');
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+
+  T('Odsłuch na Androidzie: cały tekst trafia od razu do kolejki systemowego głosu (czyta dalej po zgaszeniu ekranu)', async () => {
+    const o = await open(KEY, chain(site('sport.interia.pl', fx.html), gemini(ai)));
+    try {
+      await o.page.evaluate(() => { window.__calls = []; window.__stops = 0; window.__resolvers = [];
+        window.Capacitor = { Plugins: { TextToSpeech: { speak: opts => { window.__calls.push(opts); return new Promise((res, rej) => window.__resolvers.push({ res, rej })); }, stop: async () => { window.__stops++; window.__resolvers.splice(0).forEach(r => r.rej(new Error('stopped'))); } } } }; });
+      await ev(o.page, u => { S.links.push({ id: 'l1', url: u, title: 'Legenda', tags: [], note: '', ts: 1 }); save(); }, fx.url);
+      await ev(o.page, () => A.readLink({ id: 'l1' })); await o.page.waitForTimeout(2000);
+      await ev(o.page, () => A.readerTab({ k: 'full' }));
+      await o.page.click('[data-act=ttsPlay][data-m=full]'); await o.page.waitForTimeout(400);
+      const calls = await ev(o.page, () => window.__calls.map(c => [c.queueStrategy, c.text.length]));
+      const total = await ev(o.page, () => tts.chunks.length);
+      assert.ok(total > 5, 'za mało kawałków: ' + total); assert.strictEqual(calls.length, total, 'nie wszystkie kawałki w kolejce naraz');
+      assert.strictEqual(calls[0][0], 0); assert.ok(calls.slice(1).every(c => c[0] === 1), 'kolejne kawałki muszą dopisywać się do kolejki');
+      assert.ok(calls.every(c => c[1] <= 300), 'kawałek za długi - pauza byłaby zbyt gruba');
+      // czytanie postępuje: pierwsze 3 kawałki skończone
+      await ev(o.page, () => { for (let i = 0; i < 3; i++) window.__resolvers[i].res(); }); await o.page.waitForTimeout(200);
+      await o.page.click('[data-act=ttsPause]'); await o.page.waitForTimeout(100);
+      const at = await ev(o.page, () => tts.i);
+      assert.strictEqual(at, 3, 'pauza powinna zapamiętać miejsce (3), a jest ' + at);
+      await ev(o.page, () => { window.__calls.length = 0; });
+      await o.page.click('[data-act=ttsResume]'); await o.page.waitForTimeout(300);
+      const first = await ev(o.page, () => window.__calls[0] && window.__calls[0].text);
+      const expected = await ev(o.page, () => tts.chunks[3]);
+      assert.strictEqual(first, expected, 'wznowienie nie zaczęło od miejsca pauzy');
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+
+  T('Odsłuch w przeglądarce: wznowienie po pauzie zaczyna od kawałka, na którym przerwano (nie od początku)', async () => {
+    const o = await open(KEY, chain(site('sport.interia.pl', fx.html), gemini(ai)));
+    try {
+      await o.page.evaluate(`(() => { window.__spoken = []; window.SpeechSynthesisUtterance = function (t) { this.text = t; };
+        Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: { speak(u) { window.__spoken.push(u.text); setTimeout(() => u.onend && u.onend(), 400); }, cancel() {} } }); })()`);
+      await ev(o.page, u => { S.links.push({ id: 'l1', url: u, title: 'Legenda', tags: [], note: '', ts: 1 }); save(); }, fx.url);
+      await ev(o.page, () => A.readLink({ id: 'l1' })); await o.page.waitForTimeout(2000);
+      await ev(o.page, () => A.readerTab({ k: 'full' }));
+      await o.page.click('[data-act=ttsPlay][data-m=full]'); await o.page.waitForTimeout(1100);
+      await o.page.click('[data-act=ttsPause]'); const at = await ev(o.page, () => tts.i);
+      assert.ok(at >= 2, 'nie doszło do dalszych kawałków: ' + at);
+      await ev(o.page, () => { window.__spoken.length = 0; });
+      await o.page.click('[data-act=ttsResume]'); await o.page.waitForTimeout(150);
+      assert.strictEqual(await ev(o.page, () => window.__spoken[0]), await ev(o.page, i => tts.chunks[i], at));
+    } finally { await o.browser.close(); }
+  });
+};

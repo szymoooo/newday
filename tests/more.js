@@ -605,3 +605,46 @@ module.exports.receipt = function (T, ev, today) {
     } finally { await o.browser.close(); }
   });
 };
+
+/* ===== ODPORNOŚĆ NA USZKODZONY JSON Z AI ===== */
+module.exports.json = function (T, ev, today) {
+  const { open, gemini, PNG, KEY } = require('./harness');
+  const assert = require('assert');
+  T('extractJSON: naprawia brakujące przecinki, końcowe przecinki i ucięte odpowiedzi', async () => {
+    const o = await open({ settings: { name: 'Ala' } });
+    try {
+      const r = await ev(o.page, () => {
+        const ok = x => { try { return extractJSON(x); } catch (e) { return 'BŁĄD ' + e.message; } };
+        return {
+          czysty: ok('tekst {"a":1,"items":[{"n":"x"},{"n":"y"}]} koniec'),
+          przecinek: ok('{"items":[{"n":"x"},{"n":"y"},]}'),
+          brak: ok('{"items":[{"n":"x"}\n{"n":"y"}]}'),
+          brakStr: ok('{"items":["a"\n"b"]}'),
+          ucietyElement: ok('{"store":"X","items":[{"n":"a","p":1},{"n":"b","p":2},{"n":"c","p'),
+          ucietyPoPrzecinku: ok('{"store":"X","items":[{"n":"a"},{"n":"b"},'),
+          bezNic: ok('brak json')
+        };
+      });
+      assert.deepStrictEqual(r.czysty, { a: 1, items: [{ n: 'x' }, { n: 'y' }] });
+      assert.deepStrictEqual(r.przecinek, { items: [{ n: 'x' }, { n: 'y' }] });
+      assert.deepStrictEqual(r.brak, { items: [{ n: 'x' }, { n: 'y' }] });
+      assert.deepStrictEqual(r.brakStr, { items: ['a', 'b'] });
+      assert.deepStrictEqual(r.ucietyElement, { store: 'X', items: [{ n: 'a', p: 1 }, { n: 'b', p: 2 }] });
+      assert.deepStrictEqual(r.ucietyPoPrzecinku, { store: 'X', items: [{ n: 'a' }, { n: 'b' }] });
+      assert.ok(String(r.bezNic).startsWith('BŁĄD'));
+    } finally { await o.browser.close(); }
+  });
+
+  T('Skaner paragonów: uszkodzona odpowiedź AI (ucięta w środku listy) nadal daje przeczytane pozycje', async () => {
+    const broken = '{"store":"Biedronka","date":"2026-11-28","items":[{"name":"Mleko","price":3.49,"unit":"szt","qty":1,"unitPrice":3.49,"cat":"nabial"},{"name":"Chleb","price":4.5,"unit":"szt","qty":1,"unitPrice":4.5,"cat":"pieczywo"},{"name":"Ser","pri';
+    const o = await open(KEY, gemini(() => broken));
+    try {
+      await ev(o.page, () => go('budget'));
+      const [fc] = await Promise.all([o.page.waitForEvent('filechooser'), o.page.click('[data-act=scanGal]')]);
+      await fc.setFiles({ name: 'p.png', mimeType: 'image/png', buffer: PNG });
+      await o.page.waitForSelector('#xn0', { timeout: 10000 });
+      assert.strictEqual(await ev(o.page, () => expDraft.items.length), 2);
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+};

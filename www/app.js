@@ -359,9 +359,24 @@ async function callAI1(st, opts) {
   return j.content.map(c => c.text || '').join('');
 }
 function extractJSON(t) {
-  const a = t.indexOf('{'), b = t.lastIndexOf('}');
-  if (a < 0 || b < 0) throw new Error('AI nie zwróciło danych');
-  return JSON.parse(t.slice(a, b + 1));
+  t = String(t || '');
+  const a = t.indexOf('{'); if (a < 0) throw new Error('AI nie zwróciło danych');
+  const raw = t.slice(a, t.lastIndexOf('}') + 1) || t.slice(a);
+  try { return JSON.parse(raw); } catch (e) { /* naprawiamy poniżej */ }
+  const tidy = x => x.replace(/,\s*([}\]])/g, '$1').replace(/}\s*{/g, '},{').replace(/]\s*\[/g, '],[').replace(/("|\d|true|false|null)\s*\n\s*"/g, '$1,\n"');
+  try { return JSON.parse(tidy(raw)); } catch (e) { /* odpowiedź mogła zostać ucięta */ }
+  // ucięty JSON: zostawiamy ostatni kompletny element i domykamy nawiasy
+  const src = t.slice(a); let str = false, esc = false; const stack = []; let cut = -1, cutStack = [];
+  for (let i = 0; i < src.length; i++) {
+    const c = src[i];
+    if (str) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') str = false; continue; }
+    if (c === '"') str = true;
+    else if (c === '{' || c === '[') stack.push(c === '{' ? '}' : ']');
+    else if (c === '}' || c === ']') { stack.pop(); cut = i; cutStack = stack.slice(); }
+  }
+  if (cut < 0) throw new Error('AI zwróciło niepełne dane - spróbuj jeszcze raz');
+  const fixed = tidy(src.slice(0, cut + 1)) + cutStack.reverse().join('');
+  try { return JSON.parse(fixed); } catch (e) { throw new Error('AI zwróciło niepełne dane - spróbuj jeszcze raz'); }
 }
 function imgBlock(dataUrl) { return { type: 'image', dataUrl }; }
 
@@ -1281,8 +1296,8 @@ async function scanReceipt(cam) {
   const img = await pickImage(1800, cam); if (!img) return;
   busy(true, 'Czytam paragon…');
   try {
-    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em: {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","type":"ogólny rodzaj produktu jednym słowem, np. serek, jogurt, szynka, mleko","price":0.0,"unit":"kg lub szt","qty":0.0,"unitPrice":0.0,"cat":"klucz kategorii"}]}. "price" to ŁĄCZNA kwota pozycji po rabatach (linie OPUST odejmij od pozycji powyżej; to, co faktycznie zapłacono za tę pozycję), z kropką jako separatorem. Dla KAŻDEJ pozycji podaj też cenę jednostkową z paragonu (bez rabatu), czyli to, co kosztuje 1 sztuka albo 1 kg w sklepie: paragon pisze np. \"3 x2,29 6,87\" → qty=3, unit=\"szt\", unitPrice=2.29, price=6.87; \"1,606 x24,90 39,99\" + OPUST -19,13 → qty=1.606, unit=\"kg\", unitPrice=24.90, price=20.86; \"1 x4,79 4,79\" → qty=1, unit=\"szt\", unitPrice=4.79. unit=\"kg\" tylko dla towarów na wagę (ilość z przecinkiem i 3 miejscami po przecinku), reszta unit=\"szt\". unitPrice to NIGDY łączna kwota za kilka sztuk. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
-    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Odczytaj wszystkie pozycje z paragonu.' }] }], max: 4000 });
+    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em w JEDNEJ LINII (bez wcięć i bez komentarzy): {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","type":"ogólny rodzaj produktu jednym słowem, np. serek, jogurt, szynka, mleko","price":0.0,"unit":"kg lub szt","qty":0.0,"unitPrice":0.0,"cat":"klucz kategorii"}]}. "price" to ŁĄCZNA kwota pozycji po rabatach (linie OPUST odejmij od pozycji powyżej; to, co faktycznie zapłacono za tę pozycję), z kropką jako separatorem. Dla KAŻDEJ pozycji podaj też cenę jednostkową z paragonu (bez rabatu), czyli to, co kosztuje 1 sztuka albo 1 kg w sklepie: paragon pisze np. \"3 x2,29 6,87\" → qty=3, unit=\"szt\", unitPrice=2.29, price=6.87; \"1,606 x24,90 39,99\" + OPUST -19,13 → qty=1.606, unit=\"kg\", unitPrice=24.90, price=20.86; \"1 x4,79 4,79\" → qty=1, unit=\"szt\", unitPrice=4.79. unit=\"kg\" tylko dla towarów na wagę (ilość z przecinkiem i 3 miejscami po przecinku), reszta unit=\"szt\". unitPrice to NIGDY łączna kwota za kilka sztuk. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
+    const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Odczytaj wszystkie pozycje z paragonu.' }] }], max: 8000 });
     const j = extractJSON(out);
     const items = (j.items || []).filter(it => it && it.name).map(it => {
       const o = { name: String(it.name).trim(), price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), type: String(it.type || '').toLowerCase().trim().slice(0, 30), unit: /^kg$/i.test(it.unit || '') ? 'kg' : /^szt|^sz$/i.test(it.unit || '') ? 'szt' : '', qty: parseFloat(String(it.qty || '').replace(',', '.')) || 0, unitPrice: parsePrice(it.unitPrice) || 0 };

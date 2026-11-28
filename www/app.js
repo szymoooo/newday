@@ -819,7 +819,7 @@ const PCAT_RULES = [
   ['mrozonki', 'mrozon|lody|lod |hortex|paluszki rybne|frytki|warzywa na patelni|mrozonk|lodz'],
   ['ryby', 'ryb|losos|dorsz|sledz|tunczyk|makrel|pstrag|krewetk|karp|mintaj|sandacz|panga|owoce morza|sardynk|halibut|tilapi|szprot|kalmar|mule |ostryg|dorad|labraks|anchois|miruna|morszczuk|surimi|kawior'],
   ['mieso', 'mies|kurczak|kurcz|piers|udk|schab|karkow|wieprzow|wolow|indyk|mielon|zeberk|kotlet|stek|lopatk|golonk|watrob|skrzydelk|cielec|kaczk|krolik|rolad|bitk|gulasz|filet|pulpet|flaczki|baranin|jagniec|burger|hamburger|antrykot|szponder|rosol|drob|rostbef|ozorek|serca|zoladki|poledwiczk'],
-  ['nabial', 'mlek|masl|smietan|jogurt|kefir|maslank|jaj|margaryn|serwatk|skyr|actimel|danio|pudding|twarozk|mleczn|zott|jogobella|bakoma|piatnica|mlekovita|oatly|alpro|serniczk|deser mleczny|galaretk mlecz|bita smietan|maslo|jajk|jajek|smietank|ayran|maslanka'],
+  ['nabial', 'mlek|masl(?:o|a|em|u|e)(?![a-z])|smietan|jogurt|kefir|maslank|jaj|margaryn|serwatk|skyr|actimel|danio|pudding|twarozk|mleczn|zott|jogobella|bakoma|piatnica|mlekovita|oatly|alpro|serniczk|deser mleczny|galaretk mlecz|bita smietan|masl(?:o|a|em|u)(?![a-z])|jajk|jajek|smietank|ayran|maslanka'],
   ['pieczywo', 'chleb|bulk|bagiet|chalk|rogal|drozdzowk|tost|pieczyw|precel|ciabatt|pita|tortill|buleczk|grahamk|paczek|chrupk|wafle ryz|obwarzan|bagietk|rogalik|zakwas|razow|zytni'],
   ['warzywa', 'ziemniak|kartofl|marchew|cebul|czosnek|pomidor|ogorek|ogork|papryk|salat|szpinak|brokul|kalafior|kapust|burak|seler|pietruszk|por |pory|cukini|dyni|rzodkiew|baklazan|kukurydz|fasolk|groszek|szczypior|koper|natk|rukol|jarmuz|pieczark|grzyb|brukselk|batat|imbir|rzepa|warzyw|awokado|bazyli|mieta|kolendr|rzezuch|cykori|szparag|bob |kabaczek|zielenin|boczniak|chrzan swiezy|kiszona kapusta|sałat|mix salat'],
   ['owoce', 'jablk|banan|pomarancz|cytryn|limonk|gruszk|winogron|truskawk|malin|jagod|borowk|wisni|czeresn|brzoskwin|nektaryn|sliwk|arbuz|melon|kiwi|ananas|mango|mandarynk|grejpfrut|owoc|morel|porzeczk|agrest|figi|daktyl|rodzynk|granat|papaja|marakuj|klementynk|jezyn|zurawin|suszone'],
@@ -833,8 +833,15 @@ const PCAT_RULES = [
 const pcatName = k => (PCATS.find(c => c[0] === k) || ['inne', 'Inne'])[1];
 const validPcat = k => (PCATS.some(c => c[0] === k) ? k : '');
 const deacc = t => String(t || '').toLowerCase().replace(/ł/g, 'l').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+function matchedPcats(text) {
+  const t = ' ' + deacc(text).trim() + ' ', out = [];
+  for (const [k, rx] of PCAT_RULES) if (new RegExp('(?<![\\p{L}])(?:' + rx + ')', 'u').test(t)) out.push(k);
+  if (/(?<![a-z])salat(?:a|y|e|ami|om|ach)?(?![a-z])/.test(t)) { const i = out.indexOf('warzywa'); if (i >= 0) out.splice(i, 1); out.unshift('warzywa'); }
+  return out;
+}
 function guessPcat(text) {
   const t = ' ' + deacc(text).trim() + ' ';
+  if (/(?<![a-z])salat(?:a|y|e|ami|om|ach)?(?![a-z])/.test(t)) return 'warzywa'; // sałata masłowa to warzywo, nie nabiał
   for (const [k, rx] of PCAT_RULES) if (new RegExp('(?<![\\p{L}])(?:' + rx + ')', 'u').test(t)) return k;
   return 'inne';
 }
@@ -1568,12 +1575,12 @@ function findFuzzy(list, text, get) {
 let aiCatBusy = false;
 async function aiCatPending() {
   if (aiCatBusy || !hasKey()) return;
-  const list = S.shopping.filter(x => !x.done && !x.catSet && !x.aiTried && pcatOf(x) === 'inne');
+  const list = S.shopping.filter(x => !x.done && !x.catSet && !x.aiTried && (pcatOf(x) === 'inne' || new Set(matchedPcats(x.text)).size > 1));
   if (!list.length) return;
   aiCatBusy = true; list.forEach(x => x.aiTried = true);
   try {
     const keys = PCATS.filter(c => c[0] !== 'inne').map(c => c[0] + '=' + c[1]).join('; ');
-    const out = await claude({ system: 'Przypisz każdy produkt z listy zakupów do jednej kategorii. Dostępne kategorie (klucz=nazwa): ' + keys + '. Jeśli nic nie pasuje, użyj "inne". Odpowiedz TYLKO JSON-em: {"items":[{"i":0,"c":"klucz"}]}', messages: [{ role: 'user', content: list.map((x, i) => i + ': ' + x.text).join('\n') }], max: 600 });
+    const out = await claude({ system: 'Przypisz każdy produkt z listy zakupów do jednej kategorii. Dostępne kategorie (klucz=nazwa): ' + keys + '. Oceniaj po tym, czym produkt NAPRAWDĘ jest (rzeczownik główny), a nie po pojedynczych słowach - np. sałata masłowa to warzywa, nie nabiał; olej kokosowy to przyprawy i oleje; krem do rąk to kosmetyki. Jeśli nic nie pasuje, użyj "inne". Odpowiedz TYLKO JSON-em: {"items":[{"i":0,"c":"klucz"}]}', messages: [{ role: 'user', content: list.map((x, i) => i + ': ' + x.text).join('\n') }], max: 600 });
     const j = extractJSON(out); const arr = (j && j.items) || [];
     arr.forEach(r => { const x = list[+r.i]; const c = validPcat(r.c); if (x && c) x.cat = c; });
   } catch (e) { /* cicho - zostaje Inne */ }

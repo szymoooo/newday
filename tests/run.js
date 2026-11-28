@@ -54,7 +54,7 @@ T('Dane zostają po przeładowaniu', async () => {
 T('Kategorie produktów: rozpoznawanie odmian i nowe kategorie', async () => {
   const { browser, page } = await open({ settings: { name: 'Ala' } });
   try {
-    const cases = { 'kilo cukru': 'suche', 'cukierki': 'slodycze', 'płyn do naczyń': 'chemia', 'tabletki do zmywarki': 'chemia', 'karma dla Gabi': 'zwierzeta', 'papier toaletowy': 'higiena', 'mleko 2%': 'nabial', 'ser żółty': 'sery', 'szynka': 'wedliny', 'paliwo': 'auto', 'róża': 'rosliny', 'bukiet kwiatów': 'rosliny', 'baterie AA': 'elektronika', 'piwo': 'alkohol', 'jabłka': 'owoce', 'pomidory': 'warzywa', 'chleb': 'pieczywo', 'kurczak': 'mieso', 'proszek do prania': 'chemia', 'coś dziwnego': 'inne' };
+    const cases = { 'kilo cukru': 'suche', 'cukierki': 'slodycze', 'płyn do naczyń': 'chemia', 'tabletki do zmywarki': 'chemia', 'karma dla Gabi': 'zwierzeta', 'papier toaletowy': 'higiena', 'mleko 2%': 'nabial', 'ser żółty': 'sery', 'szynka': 'wedliny', 'paliwo': 'auto', 'róża': 'rosliny', 'bukiet kwiatów': 'rosliny', 'baterie AA': 'elektronika', 'piwo': 'alkohol', 'jabłka': 'owoce', 'pomidory': 'warzywa', 'chleb': 'pieczywo', 'kurczak': 'mieso', 'proszek do prania': 'chemia', 'coś dziwnego': 'inne', 'sałata masłowa': 'warzywa', 'masłowa sałata': 'warzywa', 'masłowa salata': 'warzywa', 'masło': 'nabial', 'masło extra': 'nabial', 'sałatka jarzynowa': 'warzywa' };
     for (const [t, k] of Object.entries(cases)) assert.strictEqual(await ev(page, t => guessPcat(t), t), k, t);
   } finally { await browser.close(); }
 });

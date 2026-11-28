@@ -170,6 +170,15 @@ module.exports = function (T, ev, today) {
     assert.strictEqual(await ev(page, () => S.shopping.length), 0);
   }));
 
+  T('Zakupy: sałata masłowa trafia do warzyw, a niejednoznaczne nazwy sprawdza AI z kontekstu', async () => run({ ...KEY }, gemini((sys, last) => /Przypisz/.test(sys) ? { items: [{ i: 0, c: 'nabial' }] } : null), async ({ page }) => {
+    await ev(page, () => go('shopping'));
+    for (const t of ['Sałata masłowa', 'Masłowa sałata', 'Masło', 'Twarożek z rzodkiewką']) { await page.fill('#newItem', t); await page.press('#newItem', 'Enter'); }
+    await page.waitForTimeout(1800);
+    const r = await ev(page, () => Object.fromEntries(S.shopping.map(x => [x.text, pcatOf(x)])));
+    assert.strictEqual(r['Sałata masłowa'], 'warzywa'); assert.strictEqual(r['Masłowa sałata'], 'warzywa'); assert.strictEqual(r['Masło'], 'nabial');
+    assert.strictEqual(r['Twarożek z rzodkiewką'], 'nabial', 'AI nie rozstrzygnęło niejednoznacznej nazwy');
+  }));
+
   T('Zakupy: ręczna kategoria wygrywa z automatyczną; duplikaty się nie dodają', async () => run({ settings: { name: 'Ala' } }, null, async ({ page }) => {
     const r = await ev(page, () => { addShopItems(['Mleko', 'mleko', 'Chleb']); const n = S.shopping.length; const x = S.shopping[0]; A.shopCatSet({ id: x.id, c: 'napoje' }); return [n, pcatOf(S.shopping[0])]; });
     assert.deepStrictEqual(r, [2, 'napoje']);

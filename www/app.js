@@ -1178,7 +1178,7 @@ function favStats() {
   const m = {};
   (S.expenses || []).slice().sort((a, b) => (a.date || '').localeCompare(b.date || '') || (a.ts || 0) - (b.ts || 0)).forEach(e => (e.items || []).forEach(it => {
     const n = it.norm || normName(it.name); if (!n) return;
-    const r = m[n] || (m[n] = { n: 0 }); r.n++; r.name = it.name; r.price = parsePrice(it.price); r.cat = it.cat; r.last = e.date; r.unit = it.unit || ''; r.unitPrice = it.unitPrice || 0; if (it.type) r.type = it.type;
+    const r = m[n] || (m[n] = { n: 0 }); r.n++; r.name = it.name; r.price = (it.unitPrice > 0 ? it.unitPrice : parsePrice(it.price)); r.cat = it.cat; r.last = e.date; r.unit = it.unit || ''; r.unitPrice = it.unitPrice || 0; if (it.type) r.type = it.type;
   }));
   return m;
 }
@@ -1210,6 +1210,7 @@ function priceInfo(t) {
   const st = favStats(); let r = st[n];
   if (!r) { const hit = Object.keys(st).filter(k => st[k].price && k.split(' ').includes(n)); if (hit.length === 1) r = st[hit[0]]; }
   if (r && r.unit === 'kg' && r.unitPrice) return { label: money(r.unitPrice) + '/kg', est: 0 };
+  if (r && r.unitPrice) return { label: money(r.unitPrice), est: r.unitPrice };
   const v = priceFor(t); return v ? { label: money(v), est: v } : null;
 }
 function priceFor(t) {
@@ -1262,9 +1263,10 @@ function syncExp() {
 function openExpenseEditor(e, keep) {
   expDraft = e;
   const rows = e.items.map((it, i) => { const c = validPcat(it.cat) || guessPcat(it.name);
-    return '<div class="xrow"><div class="row" style="gap:8px"><div class="grow"><input id="xn' + i + '" value="' + esc(it.name) + '" placeholder="Produkt" style="margin:4px 0"></div><div style="width:84px"><input id="xp' + i + '" inputmode="decimal" value="' + esc(String(it.price === '' || it.price == null ? '' : String(it.price).replace('.', ','))) + '" placeholder="0,00" style="margin:4px 0;text-align:right"></div>' +
-      '<button class="ibtn round" style="box-shadow:none;background:transparent;color:' + (isFav(normName(it.name)) ? '#F2B21B' : '#B8ADA4') + '" data-act="expStar" data-i="' + i + '" aria-label="Ulubione">' + ic('star', 22, 1.7, isFav(normName(it.name)) ? 'currentColor' : 'none') + '</button><button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="expDelRow" data-i="' + i + '" aria-label="Usuń pozycję">' + ic('x', 20, 2) + '</button></div>' +
-      (it.unit === 'kg' && it.unitPrice ? '<div class="muted" style="margin:0 0 6px 2px">' + (it.qty ? String(it.qty).replace('.', ',') + ' kg × ' : '') + money(it.unitPrice) + '/kg</div>' : '') + '<div class="rbar" style="padding:0 0 6px">' + PCATS.map(k => '<button type="button" class="rf pc-' + k[0] + (k[0] === c ? ' sel' : '') + '" data-act="expPick" data-i="' + i + '" data-c="' + k[0] + '" style="padding:3px 10px 3px 4px"><span class="ri" style="width:22px;height:22px">' + ic('p_' + k[0], 13, 2.2) + '</span>' + k[1] + '</button>').join('') + '</div></div>'; }).join('');
+    return '<div class="xrow"><input id="xn' + i + '" value="' + esc(it.name) + '" placeholder="Produkt" style="margin:4px 0">' +
+      '<div class="row" style="gap:8px;justify-content:space-between"><div class="row" style="gap:6px;flex:none"><div style="width:110px"><input id="xp' + i + '" inputmode="decimal" value="' + esc(String(it.price === '' || it.price == null ? '' : String(it.price).replace('.', ','))) + '" placeholder="0,00" style="margin:4px 0;text-align:right"></div><span class="muted">zł</span></div>' +
+      '<div class="row" style="gap:0;flex:none"><button class="ibtn round" style="box-shadow:none;background:transparent;color:' + (isFav(normName(it.name)) ? '#F2B21B' : '#B8ADA4') + '" data-act="expStar" data-i="' + i + '" aria-label="Ulubione">' + ic('star', 22, 1.7, isFav(normName(it.name)) ? 'currentColor' : 'none') + '</button><button class="ibtn round" style="box-shadow:none;background:transparent;color:#B8ADA4" data-act="expDelRow" data-i="' + i + '" aria-label="Usuń pozycję">' + ic('x', 20, 2) + '</button></div></div>' +
+      (it.unitPrice && (it.unit === 'kg' || (it.qty && it.qty !== 1) || Math.abs(it.unitPrice - parsePrice(it.price)) > 0.01) ? '<div class="muted" style="margin:0 0 6px 2px">Cena w sklepie: ' + (it.qty ? String(it.qty).replace('.', ',') + (it.unit === 'kg' ? ' kg' : ' szt.') + ' × ' : '') + money(it.unitPrice) + (it.unit === 'kg' ? '/kg' : '') + (it.qty && Math.abs(it.qty * it.unitPrice - parsePrice(it.price)) > 0.02 ? ' · po rabacie ' + money(parsePrice(it.price)) : '') + '</div>' : '') + '<div class="rbar" style="padding:0 0 6px">' + PCATS.map(k => '<button type="button" class="rf pc-' + k[0] + (k[0] === c ? ' sel' : '') + '" data-act="expPick" data-i="' + i + '" data-c="' + k[0] + '" style="padding:3px 10px 3px 4px"><span class="ri" style="width:22px;height:22px">' + ic('p_' + k[0], 13, 2.2) + '</span>' + k[1] + '</button>').join('') + '</div></div>'; }).join('');
   const total = e.items.reduce((a, it) => a + parsePrice(it.price), 0);
   sheet('<h1 style="font-size:22px">' + (e.id ? 'Edytuj wydatek' : e.src === 'receipt' ? 'Sprawdź paragon' : 'Nowy wydatek') + '</h1>' +
     (e.src === 'receipt' && !e.id ? '<div class="muted" style="margin-bottom:6px">AI mogło się pomylić - popraw nazwy, ceny i kategorie, a potem zapisz.</div>' : '') +
@@ -1279,10 +1281,19 @@ async function scanReceipt(cam) {
   const img = await pickImage(1800, cam); if (!img) return;
   busy(true, 'Czytam paragon…');
   try {
-    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em: {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","type":"ogólny rodzaj produktu jednym słowem, np. serek, jogurt, szynka, mleko","price":0.0,"unit":"kg lub szt","qty":0.0,"unitPrice":0.0,"cat":"klucz kategorii"}]}. "price" to ŁĄCZNA kwota pozycji po rabatach (to, co faktycznie zapłacono za tę pozycję), z kropką jako separatorem - NIGDY cena za kilogram. Dla towarów na wagę (warzywa, owoce, wędliny, ser na wagę) ustaw unit="kg", qty=waga w kg (np. 0.350) i unitPrice=cena za 1 kg z paragonu. Dla towarów na sztuki unit="szt", qty=liczba sztuk, unitPrice=cena sztuki. Jeśli nie ma tych danych, pomiń pola unit/qty/unitPrice. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
+    const sys = 'Odczytujesz polskie paragony ze zdjęcia. Odpowiedz WYŁĄCZNIE JSON-em: {"store":"nazwa sklepu","date":"RRRR-MM-DD lub null","total":0.0,"items":[{"name":"nazwa produktu po polsku, bez skrótów jeśli to możliwe","type":"ogólny rodzaj produktu jednym słowem, np. serek, jogurt, szynka, mleko","price":0.0,"unit":"kg lub szt","qty":0.0,"unitPrice":0.0,"cat":"klucz kategorii"}]}. "price" to ŁĄCZNA kwota pozycji po rabatach (linie OPUST odejmij od pozycji powyżej; to, co faktycznie zapłacono za tę pozycję), z kropką jako separatorem. Dla KAŻDEJ pozycji podaj też cenę jednostkową z paragonu (bez rabatu), czyli to, co kosztuje 1 sztuka albo 1 kg w sklepie: paragon pisze np. \"3 x2,29 6,87\" → qty=3, unit=\"szt\", unitPrice=2.29, price=6.87; \"1,606 x24,90 39,99\" + OPUST -19,13 → qty=1.606, unit=\"kg\", unitPrice=24.90, price=20.86; \"1 x4,79 4,79\" → qty=1, unit=\"szt\", unitPrice=4.79. unit=\"kg\" tylko dla towarów na wagę (ilość z przecinkiem i 3 miejscami po przecinku), reszta unit=\"szt\". unitPrice to NIGDY łączna kwota za kilka sztuk. Pomiń linie typu SUMA, PTU, RESZTA, GOTÓWKA, KARTA, numer paragonu i rabaty bez produktu. Kategorie (klucz): ' + PCATS.map(c => c[0] + ' = ' + c[1]).join(', ') + '.';
     const out = await claude({ system: sys, messages: [{ role: 'user', content: [imgBlock(img), { type: 'text', text: 'Odczytaj wszystkie pozycje z paragonu.' }] }], max: 4000 });
     const j = extractJSON(out);
-    const items = (j.items || []).filter(it => it && it.name).map(it => ({ name: String(it.name).trim(), price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), type: String(it.type || '').toLowerCase().trim().slice(0, 30), unit: /^kg$/i.test(it.unit || '') ? 'kg' : '', qty: parsePrice(it.qty) || 0, unitPrice: parsePrice(it.unitPrice) || 0 })).map(it => { if (it.unit === 'kg' && it.qty && it.unitPrice) { const calc = Math.round(it.qty * it.unitPrice * 100) / 100; if (!it.price || Math.abs(it.price - calc) > calc * 0.03) it.price = calc; } return it; });
+    const items = (j.items || []).filter(it => it && it.name).map(it => {
+      const o = { name: String(it.name).trim(), price: parsePrice(it.price), cat: validPcat(it.cat) || guessPcat(it.name), type: String(it.type || '').toLowerCase().trim().slice(0, 30), unit: /^kg$/i.test(it.unit || '') ? 'kg' : /^szt|^sz$/i.test(it.unit || '') ? 'szt' : '', qty: parseFloat(String(it.qty || '').replace(',', '.')) || 0, unitPrice: parsePrice(it.unitPrice) || 0 };
+      // AI czasem wpisuje cenę jednostkową jako łączną albo odwrotnie - prostujemy
+      if (o.unit === 'kg' && o.qty && o.qty !== 1 && o.unitPrice && o.price && Math.abs(o.price - o.unitPrice) < 0.02) o.price = Math.round(o.qty * o.unitPrice * 100) / 100; // towar na wagę: AI wpisało cenę za kg jako kwotę pozycji
+      if (o.qty && o.qty !== 1 && o.price && !o.unitPrice) o.unitPrice = Math.round(o.price / o.qty * 100) / 100;
+      if (!o.price && o.qty && o.unitPrice) o.price = Math.round(o.qty * o.unitPrice * 100) / 100;
+      if (!o.unitPrice && o.price && (!o.qty || o.qty === 1)) { o.unitPrice = o.price; o.qty = o.qty || 1; }
+      if (!o.unit && o.qty) o.unit = 'szt';
+      return o;
+    });
     if (!items.length) throw new Error('nie znalazłem pozycji - zrób ostrzejsze zdjęcie całego paragonu');
     busy(false);
     openExpenseEditor({ id: '', date: /^\d{4}-\d{2}-\d{2}$/.test(j.date || '') ? j.date : today(), store: j.store || '', items, src: 'receipt' });
@@ -2389,7 +2400,7 @@ const A = {
       (pool.length ? pool.map(f => favRow(f)).join('') : '<div class="muted card">Brak ulubionych. Oznacz gwiazdką produkty na ekranie sprawdzania paragonu.</div>'));
   },
   favDel: (d) => { if (d.close) closeSheet(); const f = favPool().find(x => x.norm === d.n); if (f) { S.favs = (S.favs || []).filter(x => x.norm !== d.n); S.favOff = S.favOff || []; if (!S.favOff.includes(d.n)) S.favOff.push(d.n); save(); } if (route.v === 'favs') render(); else A.favList(); if (route.v === 'shopping') render(); },
-  expStar: (d) => { syncExp(); const it = expDraft.items[+d.i]; if (!String(it.name).trim()) { toast('Najpierw wpisz nazwę produktu'); return; } const on = favToggle(it.name, it.cat, it.price); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); openExpenseEditor(expDraft, true); },
+  expStar: (d) => { syncExp(); const it = expDraft.items[+d.i]; if (!String(it.name).trim()) { toast('Najpierw wpisz nazwę produktu'); return; } const on = favToggle(it.name, it.cat, it.unitPrice || it.price); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); openExpenseEditor(expDraft, true); },
   shopFav: (d) => { const x = byId(S.shopping, d.id); if (!x) return; const on = favToggle(x.text, pcatOf(x), ''); toast(on ? 'Dodano do ulubionych ⭐' : 'Usunięto z ulubionych'); closeSheet(); render(); },
   chatChoice: (d) => { const ta = $('#chatIn'); if (ta) { ta.value = 'dodaj ' + d.t; A.chatSend(); } },
   shopCatSet: (d) => { const x = byId(S.shopping, d.id); if (x) { x.cat = d.c; x.catSet = true; save(); } closeSheet(); render(); },

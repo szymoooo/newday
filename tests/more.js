@@ -560,3 +560,48 @@ module.exports.reader2 = function (T, ev, today) {
     } finally { await o.browser.close(); }
   });
 };
+
+/* ===== PARAGON: cena detaliczna (za sztukę / za kg), nie suma za kilka sztuk ===== */
+module.exports.receipt = function (T, ev, today) {
+  const { open, gemini, PNG, KEY } = require('./harness');
+  const assert = require('assert');
+  // dane odpowiadają prawdziwemu paragonowi z Biedronki (zdjęcie od użytkownika)
+  const receipt = { store: 'Biedronka', date: '2026-11-28', total: 100, items: [
+    { name: 'Jogobella Malina 175 g', price: 6.87, unit: 'szt', qty: 3, unitPrice: 2.29, cat: 'nabial' },
+    { name: 'Filet z piersi kurczaka', price: 20.86, unit: 'kg', qty: 1.606, unitPrice: 24.90, cat: 'mieso' },
+    { name: 'Płyn nabłyszczający Finish 400 ml', price: 13.99, unit: 'szt', qty: 2, unitPrice: 13.99, cat: 'chemia' },
+    { name: 'Parówki szynkowe Naturalne 250 g', price: 13.58, unit: 'szt', qty: 2, unitPrice: 6.79, cat: 'wedliny' }] };
+  T('Paragon: zapisuje cenę detaliczną (za sztukę i za kg), a w budżecie kwotę faktycznie zapłaconą', async () => {
+    const o = await open(KEY, gemini(() => receipt), 360);
+    try {
+      await ev(o.page, () => go('budget'));
+      const [fc] = await Promise.all([o.page.waitForEvent('filechooser'), o.page.click('[data-act=scanGal]')]);
+      await fc.setFiles({ name: 'p.png', mimeType: 'image/png', buffer: PNG });
+      await o.page.waitForSelector('#xn0', { timeout: 10000 });
+      const w = await ev(o.page, () => { const r = document.querySelector('#xn0').getBoundingClientRect(); return r.width; });
+      assert.ok(w > 250, 'pole nazwy za wąskie (' + Math.round(w) + ' px) - nazwa się nie mieści');
+      await ev(o.page, () => A.expSave());
+      const it = await ev(o.page, () => S.expenses[0].items);
+      assert.deepStrictEqual(it.map(i => [i.price, i.qty, i.unitPrice, i.unit]), [[6.87, 3, 2.29, 'szt'], [20.86, 1.606, 24.9, 'kg'], [13.99, 2, 13.99, 'szt'], [13.58, 2, 6.79, 'szt']]);
+      assert.strictEqual(await ev(o.page, () => Math.round(S.expenses[0].total * 100) / 100), 55.3, 'budżet powinien liczyć zapłacone kwoty');
+      await ev(o.page, () => go('shopping'));
+      for (const t of ['Jogobella Malina 175 g', 'Filet z piersi kurczaka', 'Płyn nabłyszczający Finish 400 ml']) { await o.page.fill('#newItem', t); await o.page.press('#newItem', 'Enter'); }
+      const txt = await ev(o.page, () => document.body.innerText);
+      assert.ok(txt.includes('2,29 zł') && !txt.includes('6,87 zł'), 'Jogobella powinna mieć cenę za sztukę 2,29');
+      assert.ok(txt.includes('24,90 zł/kg') && !txt.includes('20,86'), 'filet powinien mieć cenę za kg');
+      assert.ok(txt.includes('13,99 zł') && !txt.includes('27,98'), 'płyn powinien mieć cenę za sztukę 13,99');
+      assert.deepStrictEqual(o.errs, []);
+    } finally { await o.browser.close(); }
+  });
+
+  T('Paragon: AI wpisało cenę za kg jako kwotę pozycji → przeliczone na wagę × cena', async () => {
+    const o = await open(KEY, gemini(() => ({ store: 'X', items: [{ name: 'Pomidor malinowy', price: 29.99, unit: 'kg', qty: 0.5, unitPrice: 29.99, cat: 'warzywa' }] })));
+    try {
+      await ev(o.page, () => go('budget'));
+      const [fc] = await Promise.all([o.page.waitForEvent('filechooser'), o.page.click('[data-act=scanGal]')]);
+      await fc.setFiles({ name: 'p.png', mimeType: 'image/png', buffer: PNG });
+      await o.page.waitForSelector('#xn0', { timeout: 10000 });
+      assert.strictEqual(await ev(o.page, () => expDraft.items[0].price), 15);
+    } finally { await o.browser.close(); }
+  });
+};

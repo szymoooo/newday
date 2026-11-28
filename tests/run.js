@@ -281,6 +281,7 @@ require('./more').layout(T, ev, today);
 require('./more').reader(T, ev, today);
 require('./more').share(T, ev, today);
 require('./more').reader2(T, ev, today);
+require('./more').receipt(T, ev, today);
 
 (async () => {
   const only = process.argv[2];
